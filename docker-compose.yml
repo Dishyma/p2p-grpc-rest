@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: p2p
+      POSTGRES_PASSWORD: unaClav3
+      POSTGRES_DB: p2p_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  directory_server:
+    build: .
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://p2p:unaClav3@db:5432/p2p_db
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./src:/app/src
+
+volumes:
+  pgdata:
