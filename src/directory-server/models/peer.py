@@ -1,0 +1,26 @@
+from sqlalchemy import Column, String, Integer, DateTime, Boolean, Index
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import INET, UUID
+import uuid
+from .base import Base
+
+class PeerModel(Base):
+    __tablename__ = "peers"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ip_address = Column(INET, nullable=False)
+    grpc_port = Column(Integer, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_heartbeat = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationship
+    files = relationship("PeerFileModel", back_populates="peer", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Peer(id='{self.id}', ip='{self.ip_address}')>"
+
+# Índice para performance
+Index('idx_peers_active_heartbeat', PeerModel.is_active, PeerModel.last_heartbeat)

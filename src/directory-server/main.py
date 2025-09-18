@@ -1,13 +1,15 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import os
-from ..shared.loggin import configure_logging, get_logger
-from ..shared.database.connection import db_connection
+import sys
+import logging
+
+from .contextdb.connection import db_connection
 from .api.v1.routers import peers_router, health_router
 
-# Configurar logging
-configure_logging(os.getenv("LOG_LEVEL", "INFO"))
-logger = get_logger(__name__)
+# Configurar logging básico
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,7 +22,7 @@ async def lifespan(app: FastAPI):
         db_connection.create_tables()
         logger.info("Database tables created successfully")
     except Exception as e:
-        logger.error("Failed to create database tables", error=str(e))
+        logger.error(f"Failed to create database tables: {str(e)}")
         raise
     
     yield

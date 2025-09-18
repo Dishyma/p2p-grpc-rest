@@ -1,4 +1,4 @@
 from .peer_repository import PeerRepository
-from .file_repository import FileRepository
+from .file_repository import PeerFileRepository
 
-__all__ = ["PeerRepository", "FileRepository"]
+__all__ = ["PeerRepository", "PeerFileRepository"]

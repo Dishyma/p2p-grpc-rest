@@ -1,106 +1,71 @@
 from typing import List, Optional
 from datetime import datetime
+import uuid
 from ..repositories.peer_repository import PeerRepository
-from ..repositories.file_repository import FileRepository
-from ...shared.domain.models import Peer, FileInfo, PeerStatus
-from ...shared.exceptions import PeerNotFoundError, FileNotFoundError
-from ...shared.loggin import get_logger
-
-logger = get_logger(__name__)
+from ..repositories.file_repository import PeerFileRepository
+from ..models.peer import PeerModel
+from ..models.peer_file import PeerFileModel
 
 class DirectoryService:
     """Service para lógica de negocio del directorio"""
     
-    def __init__(self, peer_repo: PeerRepository, file_repo: FileRepository):
+    def __init__(self, peer_repo: PeerRepository, file_repo: PeerFileRepository):
         self.peer_repo = peer_repo
         self.file_repo = file_repo
     
-    async def register_peer(self, peer_id: str, ip_address: str, grpc_port: int, files: List[str]) -> Peer:
+    def register_peer(self, ip_address: str, grpc_port: int, files: List[str]) -> PeerModel:
         """Registrar peer y sus archivos"""
-        logger.info("Registering peer", peer_id=peer_id, ip=ip_address, port=grpc_port, file_count=len(files))
+        # Create new peer
+        peer = PeerModel(
+            ip_address=ip_address,
+            grpc_port=grpc_port,
+            is_active=True
+        )
         
-        # 1. Verificar si el peer ya existe
-        existing_peer = await self.peer_repo.get_by_id(peer_id)
+        created_peer = self.peer_repo.create(peer)
         
-        if existing_peer:
-            # Actualizar peer existente
-            existing_peer.ip_address = ip_address
-            existing_peer.grpc_port = grpc_port
-            existing_peer.last_heartbeat = datetime.utcnow()
-            existing_peer.status = PeerStatus.ACTIVE
-            
-            peer = await self.peer_repo.update(existing_peer)
-        else:
-            # Crear nuevo peer
-            peer = Peer(
-                id=peer_id,
-                ip_address=ip_address,
-                grpc_port=grpc_port,
-                status=PeerStatus.ACTIVE,
-                last_heartbeat=datetime.utcnow(),
-                created_at=datetime.utcnow()
-            )
-            peer = await self.peer_repo.create(peer)
-        
-        # 2. Anunciar archivos
+        # Announce files if provided
         if files:
-            await self.announce_files(peer_id, files)
+            self.announce_files(created_peer.id, files)
         
-        logger.info("Peer registered successfully", peer_id=peer_id)
-        return peer
+        return created_peer
     
-    async def unregister_peer(self, peer_id: str) -> bool:
+    def unregister_peer(self, peer_id: uuid.UUID) -> bool:
         """Desregistrar peer"""
-        logger.info("Unregistering peer", peer_id=peer_id)
-        
         # Eliminar archivos del peer
-        await self.file_repo.remove_files_for_peer(peer_id)
+        self.file_repo.delete_by_peer_id(peer_id)
         
         # Eliminar peer
-        result = await self.peer_repo.delete(peer_id)
-        
-        if result:
-            logger.info("Peer unregistered successfully", peer_id=peer_id)
-        else:
-            logger.warning("Peer not found for unregistration", peer_id=peer_id)
-        
-        return result
+        return self.peer_repo.delete(peer_id)
     
-    async def search_files(self, filename: str) -> List[Peer]:
-        """Buscar peers que tienen un archivo específico"""
-        logger.info("Searching for file", filename=filename)
-        
-        peers = await self.file_repo.find_peers_with_file(filename)
-        
-        logger.info("File search completed", filename=filename, peers_found=len(peers))
-        return peers
+    def search_files(self, filename: str) -> List[PeerFileModel]:
+        """Buscar archivos por nombre"""
+        return self.file_repo.search_by_filename(filename)
     
-    async def announce_files(self, peer_id: str, filenames: List[str]) -> None:
+    def announce_files(self, peer_id: uuid.UUID, filenames: List[str]) -> None:
         """Peer anuncia que tiene ciertos archivos"""
-        logger.info("Announcing files", peer_id=peer_id, file_count=len(filenames))
-        
         # Verificar que el peer existe
-        peer = await self.peer_repo.get_by_id(peer_id)
+        peer = self.peer_repo.get_by_id(peer_id)
         if not peer:
-            raise PeerNotFoundError(f"Peer {peer_id} not found")
+            raise ValueError(f"Peer {peer_id} not found")
         
         # Anunciar cada archivo
         for filename in filenames:
-            await self.file_repo.announce_file(peer_id, filename)
-        
-        logger.info("Files announced successfully", peer_id=peer_id)
+            peer_file = PeerFileModel(
+                peer_id=peer_id,
+                filename=filename
+            )
+            self.file_repo.create(peer_file)
     
-    async def heartbeat(self, peer_id: str) -> bool:
+    def heartbeat(self, peer_id: uuid.UUID) -> bool:
         """Procesar heartbeat de peer"""
-        logger.debug("Processing heartbeat", peer_id=peer_id)
-        
-        result = await self.peer_repo.update_heartbeat(peer_id)
-        
-        if not result:
-            logger.warning("Heartbeat failed - peer not found", peer_id=peer_id)
-        
-        return result
+        return self.peer_repo.update_heartbeat(peer_id)
     
-    async def get_active_peers(self) -> List[Peer]:
+    def get_active_peers(self) -> List[PeerModel]:
         """Obtener todos los peers activos"""
-        return await self.peer_repo.get_active_peers()
+        return self.peer_repo.get_all_active()
+    
+    
+    def get_peer_files(self, peer_id: uuid.UUID) -> List[PeerFileModel]:
+        """Obtener archivos de un peer"""
+        return self.file_repo.get_by_peer_id(peer_id)

@@ -2,9 +2,9 @@ from pydantic import BaseModel, Field, validator
 from typing import List, Optional
 from datetime import datetime
 import ipaddress
+import uuid
 
 class PeerRegisterRequest(BaseModel):
-    peer_id: str = Field(..., min_length=1, max_length=50)
     ip_address: str = Field(..., description="IP address of the peer")
     grpc_port: int = Field(..., ge=1, le=65535)
     files: List[str] = Field(default=[], description="List of files this peer has")
@@ -18,7 +18,7 @@ class PeerRegisterRequest(BaseModel):
             raise ValueError('Invalid IP address format')
 
 class PeerResponse(BaseModel):
-    peer_id: str
+    peer_id: uuid.UUID
     ip_address: str
     grpc_port: int
     is_active: bool
@@ -33,11 +33,11 @@ class FileSearchResponse(BaseModel):
     total_peers: int
 
 class FileAnnounceRequest(BaseModel):
-    peer_id: str = Field(..., min_length=1)
+    peer_id: uuid.UUID = Field(...)
     files: List[str] = Field(..., min_items=1)
 
 class HeartbeatRequest(BaseModel):
-    peer_id: str = Field(..., min_length=1)
+    peer_id: uuid.UUID = Field(...)
 
 class HealthResponse(BaseModel):
     status: str = "healthy"

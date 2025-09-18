@@ -1,54 +1,49 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from datetime import datetime
+import uuid
 from ....services.directory_service import DirectoryService
-from ....api.dependencies import get_directory_service
-from ....api.v1.schemas import (
+from ...dependencies import get_directory_service
+from ..schemas import (
     PeerRegisterRequest, PeerResponse, FileSearchResponse,
-    HeartbeatRequest, FileAnnounceRequest, HealthResponse
+    HeartbeatRequest, FileAnnounceRequest
 )
-from ....shared.exceptions import PeerNotFoundError
-from ....shared.loggin import get_logger
 
-logger = get_logger(__name__)
 router = APIRouter(tags=["peers"])
 
 @router.post("/peers/register", response_model=PeerResponse)
-async def register_peer(
+def register_peer(
     request: PeerRegisterRequest,
     service: DirectoryService = Depends(get_directory_service)
 ):
-    """Registra un nuevo peer en la red"""
+    """Registrar un nuevo peer en el directorio"""
     try:
-        peer = await service.register_peer(
-            request.peer_id,
-            request.ip_address,
-            request.grpc_port,
-            request.files
+        peer = service.register_peer(
+            ip_address=request.ip_address,
+            grpc_port=request.grpc_port,
+            files=request.files
         )
         
         return PeerResponse(
             peer_id=peer.id,
-            ip_address=peer.ip_address,
+            ip_address=str(peer.ip_address),
             grpc_port=peer.grpc_port,
-            is_active=peer.status.value == "active",
+            is_active=peer.is_active,
             last_heartbeat=peer.last_heartbeat
         )
     except Exception as e:
-        logger.error("Failed to register peer", error=str(e), peer_id=request.peer_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to register peer"
+            detail=f"Failed to register peer: {str(e)}"
         )
 
 @router.delete("/peers/{peer_id}")
-async def unregister_peer(
-    peer_id: str,
+def unregister_peer(
+    peer_id: uuid.UUID,
     service: DirectoryService = Depends(get_directory_service)
 ):
     """Desregistra un peer de la red"""
     try:
-        result = await service.unregister_peer(peer_id)
+        result = service.unregister_peer(peer_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -58,73 +53,69 @@ async def unregister_peer(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to unregister peer", error=str(e), peer_id=peer_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to unregister peer"
+            detail=f"Failed to unregister peer: {str(e)}"
         )
 
-@router.get("/files/search", response_model=FileSearchResponse)
-async def search_file(
+@router.get("/peers/files/search")
+def search_file(
     filename: str,
     service: DirectoryService = Depends(get_directory_service)
 ):
     """Busca un archivo en la red"""
     try:
-        peers = await service.search_files(filename)
+        files = service.search_files(filename)
         
-        peer_responses = [
-            PeerResponse(
-                peer_id=peer.id,
-                ip_address=peer.ip_address,
-                grpc_port=peer.grpc_port,
-                is_active=peer.status.value == "active",
-                last_heartbeat=peer.last_heartbeat
-            )
-            for peer in peers
-        ]
-        
-        return FileSearchResponse(
-            filename=filename,
-            peers=peer_responses,
-            total_peers=len(peer_responses)
-        )
+        return {
+            "filename": filename,
+            "files": [
+                {
+                    "id": str(file.id),
+                    "filename": file.filename,
+                    "peer_id": str(file.peer_id),
+                    "file_size": file.file_size,
+                    "file_hash": file.file_hash,
+                    "announced_at": file.announced_at
+                }
+                for file in files
+            ],
+            "total_files": len(files)
+        }
     except Exception as e:
-        logger.error("Failed to search file", error=str(e), filename=filename)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to search file"
+            detail=f"Failed to search file: {str(e)}"
         )
 
-@router.post("/files/announce")
-async def announce_files(
+@router.post("/peers/files/announce")
+def announce_files(
     request: FileAnnounceRequest,
     service: DirectoryService = Depends(get_directory_service)
 ):
     """Anuncia archivos de un peer"""
     try:
-        await service.announce_files(request.peer_id, request.files)
+        service.announce_files(request.peer_id, request.files)
         return {"message": "Files announced successfully"}
-    except PeerNotFoundError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Peer not found"
+            detail=str(e)
         )
     except Exception as e:
-        logger.error("Failed to announce files", error=str(e), peer_id=request.peer_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to announce files"
+            detail=f"Failed to announce files: {str(e)}"
         )
 
 @router.post("/peers/heartbeat")
-async def heartbeat(
+def heartbeat(
     request: HeartbeatRequest,
     service: DirectoryService = Depends(get_directory_service)
 ):
     """Procesa heartbeat de un peer"""
     try:
-        result = await service.heartbeat(request.peer_id)
+        result = service.heartbeat(request.peer_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -134,33 +125,32 @@ async def heartbeat(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to process heartbeat", error=str(e), peer_id=request.peer_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process heartbeat"
+            detail=f"Failed to process heartbeat: {str(e)}"
         )
 
 @router.get("/peers", response_model=List[PeerResponse])
-async def get_active_peers(
+def get_active_peers(
     service: DirectoryService = Depends(get_directory_service)
 ):
     """Obtiene todos los peers activos"""
     try:
-        peers = await service.get_active_peers()
+        peers = service.get_active_peers()
         
         return [
             PeerResponse(
                 peer_id=peer.id,
-                ip_address=peer.ip_address,
+                ip_address=str(peer.ip_address),
                 grpc_port=peer.grpc_port,
-                is_active=peer.status.value == "active",
+                is_active=peer.is_active,
                 last_heartbeat=peer.last_heartbeat
             )
             for peer in peers
         ]
     except Exception as e:
-        logger.error("Failed to get active peers", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get active peers"
+            detail=f"Failed to get active peers: {str(e)}"
         )
+
