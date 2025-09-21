@@ -1,5 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 import uuid
 from ..models.peer_file import PeerFileModel
 from ..models.peer import PeerModel
@@ -75,3 +76,31 @@ class PeerFileRepository(IPeerFileRepository):
             with db_connection.get_session() as session:
                 result = session.query(PeerFileModel).filter(PeerFileModel.peer_id == peer_id).delete()
                 return result > 0
+    
+    def get_by_peer_and_filename(self, peer_id: uuid.UUID, filename: str) -> Optional[PeerFileModel]:
+        """Buscar un archivo específico de un peer específico"""
+        if self.session:
+            return self.session.query(PeerFileModel).filter(
+                and_(PeerFileModel.peer_id == peer_id, PeerFileModel.filename == filename)
+            ).first()
+        else:
+            with db_connection.get_session() as session:
+                return session.query(PeerFileModel).filter(
+                    and_(PeerFileModel.peer_id == peer_id, PeerFileModel.filename == filename)
+                ).first()
+    
+    def update_by_id(self, file_id: uuid.UUID, update_data: dict) -> Optional[PeerFileModel]:
+        """Actualizar un archivo por ID con datos específicos"""
+        if self.session:
+            session = self.session
+            result = session.query(PeerFileModel).filter(PeerFileModel.id == file_id).update(update_data)
+            if result > 0:
+                session.flush()
+                return self.get_by_id(file_id)
+        else:
+            with db_connection.get_session() as session:
+                result = session.query(PeerFileModel).filter(PeerFileModel.id == file_id).update(update_data)
+                if result > 0:
+                    session.flush()
+                    return session.query(PeerFileModel).filter(PeerFileModel.id == file_id).first()
+        return None
