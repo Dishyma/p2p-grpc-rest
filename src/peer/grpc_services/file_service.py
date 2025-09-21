@@ -225,10 +225,12 @@ async def serve_grpc(servicer: FileTransferServicer) -> None:
         servicer, server
     )
 
-    address = f"{config.peer_ip}:{config.grpc_port}"
-    server.add_insecure_port(address)
+    # Bind to all interfaces (0.0.0.0) but log the public IP for reference
+    bind_address = f"0.0.0.0:{config.grpc_port}"
+    public_address = f"{config.peer_ip}:{config.grpc_port}"
+    server.add_insecure_port(bind_address)
 
-    logger.info(f"Iniciando servidor gRPC en {address}")
+    logger.info(f"Iniciando servidor gRPC en {bind_address} (público: {public_address})")
 
     await server.start()
 

@@ -15,9 +15,10 @@ downloads/
 eggs/
 .eggs/
 lib/
-{{ ... }}
-.pybuilder/
-target/
+lib64/
+parts/
+sdist/
+var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
@@ -170,9 +171,6 @@ data/
 logs/
 *.log
 *.backup
-
-# Archivos temporales de limpieza
-*.backupmp
 
 # IDE
 .vscode/
