@@ -8,8 +8,23 @@ fastapi = {extras = ["standard"], version = "*"}
 sqlalchemy = "*"
 structlog = "*"
 psycopg2-binary = "*"
+uvicorn = "*"
+python-multipart = "*"
+aiofiles = "*"
+grpcio = "*"
+grpcio-tools = "*"
+protobuf = "*"
+aiohttp = "*"
+click = "*"
+async-timeout = "*"
+exceptiongroup = "*"
+pyjwt = "*"
 
 [dev-packages]
+pytest = "*"
+pytest-asyncio = "*"
+black = "*"
+flake8 = "*"
 
 [requires]
 python_version = "3.13"
