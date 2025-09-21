@@ -10,17 +10,107 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U p2p -d p2p_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   directory_server:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dir
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgres://p2p:unaClav3@db:5432/p2p_db
+      DATABASE_URL: postgresql://p2p:unaClav3@db:5432/p2p_db
     ports:
       - "8080:8080"
     volumes:
       - ./src:/app/src
+    command: ["uvicorn", "src.directory-server.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+  peer1:
+    build:
+      context: .
+      dockerfile: Dockerfile.peer
+    container_name: peer1
+    depends_on:
+      - directory_server
+    working_dir: /app
+    env_file:
+      - ./configs/peer1.env
+    environment:
+      # Asegura que rutas relativas (FILES_DIRECTORY) funcionen desde /app
+      PYTHONPATH: /app/src
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    command: ["python", "-m", "src.peer.main", "--api"]
+    ports:
+      - "50051:50051"   # gRPC
+      - "8001:8001"     # REST API
+
+  peer2:
+    build:
+      context: .
+      dockerfile: Dockerfile.peer
+    container_name: peer2
+    depends_on:
+      - directory_server
+    working_dir: /app
+    env_file:
+      - ./configs/peer2.env
+    environment:
+      PYTHONPATH: /app/src
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    command: ["python", "-m", "src.peer.main", "--api"]
+    ports:
+      - "50052:50052"
+      - "8002:8002"
+
+  peer3:
+    build:
+      context: .
+      dockerfile: Dockerfile.peer
+    container_name: peer3
+    depends_on:
+      - directory_server
+    working_dir: /app
+    env_file:
+      - ./configs/peer3.env
+    environment:
+      PYTHONPATH: /app/src
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    command: ["python", "-m", "src.peer.main", "--api"]
+    ports:
+      - "50053:50053"
+      - "8003:8003"
+
+  peer4:
+    build:
+      context: .
+      dockerfile: Dockerfile.peer
+    container_name: peer4
+    depends_on:
+      - directory_server
+    working_dir: /app
+    env_file:
+      - ./configs/peer4.env
+    environment:
+      PYTHONPATH: /app/src
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    command: ["python", "-m", "src.peer.main", "--api"]
+    ports:
+      - "50054:50054"
+      - "8004:8004"
 
 volumes:
   pgdata:
