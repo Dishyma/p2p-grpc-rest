@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package file_service;
+
+// Servicio para transferencia de archivos P2P
+service FileTransfer {
+  // Descargar archivo desde un peer
+  rpc DownloadFile(DownloadRequest) returns (stream FileChunk);
+
+  // Subir archivo a un peer
+  rpc UploadFile(stream FileChunk) returns (UploadResponse);
+
+  // Listar archivos disponibles en el peer
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+
+  // Verificar si un archivo existe y obtener su información
+  rpc GetFileInfo(FileInfoRequest) returns (FileInfo);
+}
+
+// Mensaje para solicitar descarga de archivo
+message DownloadRequest {
+  string filename = 1;
+  string file_hash = 2;  // Para verificar integridad
+}
+
+// Chunk de archivo para streaming
+message FileChunk {
+  string filename = 1;
+  bytes content = 2;
+  int64 offset = 3;      // Posición del chunk en el archivo
+  bool is_last = 4;      // Indica si es el último chunk
+}
+
+// Respuesta de carga de archivo
+message UploadResponse {
+  bool success = 1;
+  string message = 2;
+  string file_hash = 3;  // Hash del archivo subido
+}
+
+// Solicitud para listar archivos
+message ListFilesRequest {
+  string filter = 1;  // Filtro opcional por nombre
+}
+
+// Respuesta con lista de archivos
+message ListFilesResponse {
+  repeated FileInfo files = 1;
+}
+
+// Solicitud de información de archivo
+message FileInfoRequest {
+  string filename = 1;
+}
+
+// Información de archivo
+message FileInfo {
+  string filename = 1;
+  int64 file_size = 2;
+  string file_hash = 3;
+  string last_modified = 4;
+}
