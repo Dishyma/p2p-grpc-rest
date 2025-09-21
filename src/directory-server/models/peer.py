@@ -9,6 +9,8 @@ class PeerModel(Base):
     __tablename__ = "peers"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    peer_name = Column(String(50), unique=True, nullable=False)  # Nombre único del peer
+    password_hash = Column(String(64), nullable=False)  # Hash SHA256 de la contraseña
     ip_address = Column(INET, nullable=False)
     grpc_port = Column(Integer, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -20,7 +22,8 @@ class PeerModel(Base):
     files = relationship("PeerFileModel", back_populates="peer", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Peer(id='{self.id}', ip='{self.ip_address}')>"
+        return f"<Peer(id='{self.id}', name='{self.peer_name}', ip='{self.ip_address}')>"
 
-# Índice para performance
+# Índices para performance
 Index('idx_peers_active_heartbeat', PeerModel.is_active, PeerModel.last_heartbeat)
+Index('idx_peers_name', PeerModel.peer_name)

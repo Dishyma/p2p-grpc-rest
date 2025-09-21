@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, BigInteger, DateTime, ForeignKey, Index
+from sqlalchemy import Column, String, BigInteger, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
@@ -19,8 +19,12 @@ class PeerFileModel(Base):
     # Relationship
     peer = relationship("PeerModel", back_populates="files")
     
-    # Unique constraint
+    # Constraints y configuración
     __table_args__ = (
+        # Constraint principal: Un peer no puede anunciar el mismo archivo múltiples veces
+        UniqueConstraint('peer_id', 'filename', name='uq_peer_file_peer_filename'),
+        # Opcional: El mismo archivo (nombre + hash) no debería duplicarse en la red
+        # UniqueConstraint('filename', 'file_hash', name='uq_peer_file_filename_hash'),
         {"schema": "public"},
     )
 
