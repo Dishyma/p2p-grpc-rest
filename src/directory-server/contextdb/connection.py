@@ -3,18 +3,14 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from typing import Generator
 import os
+from ..config import config
 from ..models.base import Base
 
 class DatabaseConnection:
     def __init__(self):
-        db_url = os.getenv(
-            "DATABASE_URL", 
-            "postgresql://p2p:unaClav3@localhost:5432/p2p_db"
-        )
-        
         self.engine = create_engine(
-            db_url,
-            echo=os.getenv("SQL_ECHO", "false").lower() == "true",
+            config.database_url,
+            echo=config.sql_echo,
             pool_pre_ping=True
         )
         
