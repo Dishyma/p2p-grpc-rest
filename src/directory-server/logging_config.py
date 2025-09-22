@@ -14,11 +14,9 @@ def setup_directory_logging(log_level: str = "INFO"):
         log_level: Nivel de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
     
-    # Crear directorio de logs si no existe
     log_dir = Path("logs/directory")
     log_dir.mkdir(parents=True, exist_ok=True)
     
-    # Configuración de logging
     logging_config = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -52,7 +50,7 @@ def setup_directory_logging(log_level: str = "INFO"):
                 'level': 'DEBUG',
                 'formatter': 'detailed',
                 'filename': 'logs/directory/directory_server.log',
-                'maxBytes': 10485760,  # 10MB
+                'maxBytes': 10485760,
                 'backupCount': 5,
                 'encoding': 'utf8'
             },
@@ -61,7 +59,7 @@ def setup_directory_logging(log_level: str = "INFO"):
                 'level': 'ERROR',
                 'formatter': 'detailed',
                 'filename': 'logs/directory/directory_error.log',
-                'maxBytes': 10485760,  # 10MB
+                'maxBytes': 10485760,
                 'backupCount': 5,
                 'encoding': 'utf8'
             },
@@ -70,7 +68,7 @@ def setup_directory_logging(log_level: str = "INFO"):
                 'level': 'INFO',
                 'formatter': 'detailed',
                 'filename': 'logs/directory/api_requests.log',
-                'maxBytes': 10485760,  # 10MB
+                'maxBytes': 10485760,
                 'backupCount': 3,
                 'encoding': 'utf8'
             },
@@ -79,7 +77,7 @@ def setup_directory_logging(log_level: str = "INFO"):
                 'level': 'INFO',
                 'formatter': 'detailed',
                 'filename': 'logs/directory/auth.log',
-                'maxBytes': 5242880,  # 5MB
+                'maxBytes': 5242880,
                 'backupCount': 3,
                 'encoding': 'utf8'
             },
@@ -88,43 +86,37 @@ def setup_directory_logging(log_level: str = "INFO"):
                 'level': 'DEBUG',
                 'formatter': 'detailed',
                 'filename': 'logs/directory/database.log',
-                'maxBytes': 10485760,  # 10MB
+                'maxBytes': 10485760,
                 'backupCount': 3,
                 'encoding': 'utf8'
             }
         },
         'loggers': {
-            # Logger principal del directory server
             'src.directory-server': {
                 'level': 'DEBUG',
                 'handlers': ['console', 'file_all', 'file_error'],
                 'propagate': False
             },
-            # Logger para API routes
             'src.directory-server.api': {
                 'level': 'DEBUG',
                 'handlers': ['file_api', 'file_error'],
                 'propagate': False
             },
-            # Logger para autenticación
             'src.directory-server.services.auth_service': {
                 'level': 'DEBUG',
                 'handlers': ['file_auth', 'file_error'],
                 'propagate': False
             },
-            # Logger para servicios de directorio
             'src.directory-server.services.directory_service': {
                 'level': 'DEBUG',
                 'handlers': ['console', 'file_all', 'file_error'],
                 'propagate': False
             },
-            # Logger para base de datos
             'src.directory-server.repositories': {
                 'level': 'DEBUG',
                 'handlers': ['file_database', 'file_error'],
                 'propagate': False
             },
-            # Silenciar logs muy verbosos de librerías externas
             'uvicorn': {
                 'level': 'WARNING',
                 'handlers': ['console'],
@@ -157,10 +149,8 @@ def setup_directory_logging(log_level: str = "INFO"):
         }
     }
     
-    # Aplicar configuración
     logging.config.dictConfig(logging_config)
     
-    # Logger principal para el directory server
     logger = logging.getLogger('src.directory-server')
     logger.info("Directory Server logging system initialized")
     logger.info(f"Log level: {log_level}")
@@ -180,7 +170,6 @@ def get_logger(name: str) -> logging.Logger:
     """
     return logging.getLogger(name)
 
-# Funciones de conveniencia para diferentes componentes
 def get_api_logger() -> logging.Logger:
     """Logger para API routes"""
     return logging.getLogger('src.directory-server.api')

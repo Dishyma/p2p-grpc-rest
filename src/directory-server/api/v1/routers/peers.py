@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.exc import IntegrityError
 from typing import List
 import uuid
 import logging
@@ -33,15 +34,11 @@ def register_peer(
     try:
         logger.info(f"Solicitud de registro con auth recibida: peer_name={request.peer_name}")
 
-        # 1. Detectar la IP a registrar
-        # Preferir la IP explícita enviada por el peer (útil en despliegues con IP pública),
-        # y si no viene, usar la IP detectada por el servidor.
         provided_ip = request.ip_address
         detected_ip = client_request.client.host if client_request else None
         client_ip = provided_ip or detected_ip
         logger.info(f"IP para registro resuelta: provided={provided_ip}, detected={detected_ip}, used={client_ip}")
 
-        # 2. Registrar el peer en el directorio (incluye credenciales en BD)
         peer = service.register_peer(
             peer_name=request.peer_name,
             password=request.password,
@@ -49,7 +46,6 @@ def register_peer(
             grpc_port=request.grpc_port
         )
 
-        # 3. Crear token para el peer registrado
         peer_data = {
             "peer_name": peer.peer_name,
             "peer_id": str(peer.id),
@@ -68,6 +64,12 @@ def register_peer(
             "access_token": access_token,
             "token_type": "bearer"
         }
+    except IntegrityError:
+        logger.warning(f"Intento de registrar peer con nombre duplicado: {request.peer_name}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Peer name '{request.peer_name}' already exists."
+        )
     except Exception as e:
         logger.error(f"Error registrando peer con auth: {str(e)}")
         raise HTTPException(
@@ -82,7 +84,6 @@ def logout_peer(
 ):
     """Marca al peer actual como inactivo (logout voluntario)."""
     try:
-        # El peer_id se extrae del token para seguridad
         peer_id_from_token = uuid.UUID(current_user.peer_id)
         
         logger.info(f"Solicitud de logout recibida para el peer: {peer_id_from_token}")
@@ -141,12 +142,9 @@ def search_file(
             "filename": filename,
             "files": [
                 {
-                    # Identidad del peer que posee el archivo (usada por el cliente)
                     "id": str(file.peer_id),
-                    # Datos de conexión del peer
                     "ip_address": str(file.peer.ip_address) if getattr(file, 'peer', None) else None,
                     "grpc_port": file.peer.grpc_port if getattr(file, 'peer', None) else None,
-                    # Datos del archivo
                     "filename": file.filename,
                     "file_size": file.file_size,
                     "file_hash": file.file_hash,

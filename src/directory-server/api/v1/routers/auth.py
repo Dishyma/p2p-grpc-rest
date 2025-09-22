@@ -17,7 +17,7 @@ def login(
     Endpoint de login para peers registrados
     """
     try:
-        # Autenticar peer
+
         peer_data = auth_service.authenticate_peer(request.username, request.password)
         
         if not peer_data:
@@ -27,7 +27,6 @@ def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Crear token
         access_token = auth_service.create_token(peer_data)
         
         logger.info(f"Login exitoso para peer: {request.username}")

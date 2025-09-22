@@ -7,9 +7,12 @@ from typing import AsyncIterator
 
 import grpc
 import aiofiles
-from generated import file_service_pb2
-from generated import file_service_pb2_grpc
-from peer.config import config
+
+from ...core.path_setup import setup_paths
+setup_paths()
+import file_service_pb2
+import file_service_pb2_grpc
+from ...core.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,6 @@ class DownloadFileServicer(file_service_pb2_grpc.FileTransferServicer):
         filename = request.filename
         file_path = self.files_directory / filename
         
-        # Obtener información del cliente
         client_info = context.peer()
         
         logger.info(f"[DOWNLOAD] Solicitud de descarga en puerto {config.grpc_download_port}: {filename}")
@@ -49,7 +51,6 @@ class DownloadFileServicer(file_service_pb2_grpc.FileTransferServicer):
             
             logger.info(f"[DOWNLOAD] Archivo encontrado - Tamaño: {file_size} bytes")
 
-            # Calcular hash del archivo si se proporcionó
             if request.file_hash:
                 actual_hash = await self._calculate_file_hash(file_path)
                 if actual_hash != request.file_hash:
@@ -152,7 +153,6 @@ async def serve_download_grpc(servicer: DownloadFileServicer) -> None:
         servicer, server
     )
 
-    # Bind to download port (base port)
     bind_address = f"0.0.0.0:{config.grpc_download_port}"
     public_address = f"{config.peer_ip}:{config.grpc_download_port}"
     server.add_insecure_port(bind_address)

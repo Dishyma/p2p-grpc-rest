@@ -21,7 +21,6 @@ def get_directory_service(
 ) -> DirectoryService:
     return DirectoryService(peer_repo, file_repo)
 
-# Esquema de seguridad HTTP Bearer
 security = HTTPBearer()
 
 def get_auth_service(db: Session = Depends(get_db_session)) -> AuthService:

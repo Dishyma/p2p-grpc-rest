@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Dict, Any, List, Optional
 
-from ..config import config
+from ...core.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,6 @@ class DirectoryClient:
 
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
-        # Cargar token actual desde config al crear la sesión
         self._access_token = config.get_directory_access_token()
         return self
 
@@ -122,11 +121,10 @@ class DirectoryClient:
                     access_token = data.get("access_token")
                     
                     if peer_id and access_token:
-                        # Guardar el token automáticamente
                         self._access_token = access_token
                         config.set_directory_access_token(access_token)
                         logger.info(f"[SUCCESS] Peer registrado exitosamente con ID: {peer_id} y token guardado")
-                        return data  # Devolver toda la respuesta
+                        return data
                     else:
                         logger.error("[ERROR] La respuesta de registro no contenía peer_id o access_token")
                         return None
@@ -142,7 +140,6 @@ class DirectoryClient:
         """Enviar heartbeat al directory server"""
         try:
             url = f"{self.base_url}/peers/heartbeat"
-            # Convertir string a UUID string para el servidor
             payload = {"peer_id": str(uuid.UUID(peer_id))}
             async with self.session.post(url, json=payload, headers=self._auth_headers()) as response:
                 return response.status == 200
@@ -173,7 +170,6 @@ class DirectoryClient:
         """Anunciar archivos disponibles al directory server"""
         try:
             url = f"{self.base_url}/peers/files/announce"
-            # Convertir string a UUID string para el servidor
             payload = {"peer_id": str(uuid.UUID(peer_id)), "files": files}
             async with self.session.post(url, json=payload, headers=self._auth_headers()) as response:
                 if response.status == 200:
@@ -197,7 +193,6 @@ class DirectoryClient:
             async with self.session.get(url, headers=self._auth_headers()) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # La API puede devolver una lista directa o un objeto con clave 'peers'
                     if isinstance(data, list):
                         return data
                     return data.get("peers", [])

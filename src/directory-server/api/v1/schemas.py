@@ -51,7 +51,6 @@ class HealthResponse(BaseModel):
     database_status: str
     active_peers: int
 
-# Esquemas de autenticación
 class LoginRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)

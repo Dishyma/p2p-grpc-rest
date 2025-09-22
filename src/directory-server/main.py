@@ -8,16 +8,13 @@ from .contextdb.connection import db_connection
 from .api.v1.routers import peers_router, health_router, auth_router
 from .logging_config import setup_directory_logging, get_logger
 
-# Configurar logging profesional
 logger = setup_directory_logging(config.log_level)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle events"""
-    # Startup
     logger.info("Starting directory server")
     
-    # Crear tablas de base de datos
     try:
         db_connection.create_tables()
         logger.info("Database tables created successfully")
@@ -27,10 +24,8 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Shutdown
     logger.info("Shutting down directory server...")
 
-# Crear aplicación FastAPI
 app = FastAPI(
     title=config.app_title,
     description=config.app_description,
@@ -38,7 +33,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Incluir routers
 app.include_router(auth_router, prefix=config.api_prefix)
 app.include_router(peers_router, prefix=config.api_prefix)
 app.include_router(health_router, prefix=config.api_prefix)

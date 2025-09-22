@@ -7,9 +7,12 @@ from typing import AsyncIterator
 
 import grpc
 import aiofiles
-from generated import file_service_pb2
-from generated import file_service_pb2_grpc
-from peer.config import config
+
+from ...core.path_setup import setup_paths
+setup_paths()
+import file_service_pb2
+import file_service_pb2_grpc
+from ...core.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +25,8 @@ class UploadFileServicer(file_service_pb2_grpc.FileTransferServicer):
     async def UploadFile(self, request_iterator: AsyncIterator[file_service_pb2.FileChunk], context) -> file_service_pb2.UploadResponse:
         """Subir archivo al peer"""
         try:
-            # Obtener información del cliente
             client_info = context.peer()
             
-            # Recopilar información del primer chunk
             first_chunk = await request_iterator.__anext__()
             filename = first_chunk.filename
 
@@ -33,21 +34,18 @@ class UploadFileServicer(file_service_pb2_grpc.FileTransferServicer):
             logger.info(f"[UPLOAD] Cliente: {client_info}")
             logger.info(f"[UPLOAD] Directorio destino: {self.files_directory}")
 
-            # Crear archivo temporal para escritura
             temp_file_path = self.files_directory / f"{filename}.tmp"
             final_file_path = self.files_directory / filename
 
             file_hash = hashlib.sha256()
 
             async with aiofiles.open(temp_file_path, 'wb') as file:
-                # Escribir primer chunk
                 await file.write(first_chunk.content)
                 file_hash.update(first_chunk.content)
 
-                # Procesar chunks restantes
                 async for chunk in request_iterator:
                     if chunk.filename != filename:
-                        continue  # Ignorar chunks de otros archivos
+                        continue
 
                     await file.write(chunk.content)
                     file_hash.update(chunk.content)
@@ -55,7 +53,6 @@ class UploadFileServicer(file_service_pb2_grpc.FileTransferServicer):
                     if chunk.is_last:
                         break
 
-            # Mover archivo temporal a final
             temp_file_path.rename(final_file_path)
 
             final_hash = file_hash.hexdigest()
@@ -97,7 +94,6 @@ async def serve_upload_grpc(servicer: UploadFileServicer) -> None:
         servicer, server
     )
 
-    # Bind to upload port (base + 10)
     bind_address = f"0.0.0.0:{config.grpc_upload_port}"
     public_address = f"{config.peer_ip}:{config.grpc_upload_port}"
     server.add_insecure_port(bind_address)

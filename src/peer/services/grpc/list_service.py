@@ -6,9 +6,12 @@ from pathlib import Path
 
 import grpc
 import aiofiles
-from generated import file_service_pb2
-from generated import file_service_pb2_grpc
-from peer.config import config
+
+from ...core.path_setup import setup_paths
+setup_paths()
+import file_service_pb2
+import file_service_pb2_grpc
+from ...core.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,6 @@ class ListFilesServicer(file_service_pb2_grpc.FileTransferServicer):
     async def ListFiles(self, request: file_service_pb2.ListFilesRequest, context) -> file_service_pb2.ListFilesResponse:
         """Listar archivos disponibles en el peer"""
         try:
-            # Obtener información del cliente
             client_info = context.peer()
             filter_pattern = request.filter.lower() if request.filter else ""
             
@@ -36,11 +38,9 @@ class ListFilesServicer(file_service_pb2_grpc.FileTransferServicer):
                 if file_path.is_file():
                     filename = file_path.name
 
-                    # Aplicar filtro si existe
                     if filter_pattern and filter_pattern not in filename.lower():
                         continue
 
-                    # Obtener información del archivo
                     stat = file_path.stat()
                     file_hash = await self._calculate_file_hash(file_path)
 
@@ -80,7 +80,6 @@ async def serve_list_grpc(servicer: ListFilesServicer) -> None:
         servicer, server
     )
 
-    # Bind to list port (base + 20)
     bind_address = f"0.0.0.0:{config.grpc_list_port}"
     public_address = f"{config.peer_ip}:{config.grpc_list_port}"
     server.add_insecure_port(bind_address)

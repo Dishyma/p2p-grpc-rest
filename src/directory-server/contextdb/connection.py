@@ -37,7 +37,6 @@ class DatabaseConnection:
         finally:
             session.close()
 
-# Instancia global
 db_connection = DatabaseConnection()
 
 def get_db_session() -> Generator[Session, None, None]:

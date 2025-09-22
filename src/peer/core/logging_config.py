@@ -15,11 +15,9 @@ def setup_peer_logging(peer_name: str = "peer", log_level: str = "INFO"):
         log_level: Nivel de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
     
-    # Crear directorio de logs si no existe
     log_dir = Path("logs/peer")
     log_dir.mkdir(parents=True, exist_ok=True)
     
-    # Configuración de logging
     logging_config = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -82,37 +80,31 @@ def setup_peer_logging(peer_name: str = "peer", log_level: str = "INFO"):
             }
         },
         'loggers': {
-            # Logger principal del peer
             'src.peer': {
                 'level': 'DEBUG',
                 'handlers': ['console', 'file_all', 'file_error'],
                 'propagate': False
             },
-            # Logger específico para gRPC
             'src.peer.grpc_services': {
                 'level': 'DEBUG',
                 'handlers': ['file_grpc', 'file_error'],
                 'propagate': False
             },
-            # Logger específico para API REST
             'src.peer.api_server': {
                 'level': 'DEBUG',
                 'handlers': ['file_api', 'file_error'],
                 'propagate': False
             },
-            # Logger para file discovery
             'src.peer.file_discovery': {
                 'level': 'DEBUG',
                 'handlers': ['console', 'file_all', 'file_error'],
                 'propagate': False
             },
-            # Logger para peer manager
             'src.peer.peer_manager': {
                 'level': 'DEBUG',
                 'handlers': ['console', 'file_all', 'file_error'],
                 'propagate': False
             },
-            # Silenciar logs muy verbosos de librerías externas
             'uvicorn': {
                 'level': 'WARNING',
                 'handlers': ['console'],
@@ -140,10 +132,8 @@ def setup_peer_logging(peer_name: str = "peer", log_level: str = "INFO"):
         }
     }
     
-    # Aplicar configuración
     logging.config.dictConfig(logging_config)
     
-    # Logger principal para el peer
     logger = logging.getLogger('src.peer')
     logger.info(f"Logging system initialized for peer: {peer_name}")
     logger.info(f"Log level: {log_level}")
@@ -163,7 +153,6 @@ def get_logger(name: str) -> logging.Logger:
     """
     return logging.getLogger(name)
 
-# Funciones de conveniencia para diferentes componentes
 def get_api_logger() -> logging.Logger:
     """Logger para API REST"""
     return logging.getLogger('src.peer.api_server')
