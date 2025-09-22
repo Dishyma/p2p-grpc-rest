@@ -128,8 +128,8 @@ def get_file_discovery() -> FileDiscoveryService:
 async def _upload_via_grpc(filename: str, content: bytes, pm: PeerManager) -> Dict[str, Any]:
     """Subir archivo usando gRPC UploadFile internamente"""
     try:
-        # Conectar al propio servicio gRPC del peer
-        channel = grpc.aio.insecure_channel(f"localhost:{config.grpc_port}")
+        # Conectar al servicio gRPC Upload del peer
+        channel = grpc.aio.insecure_channel(f"localhost:{config.grpc_upload_port}")
         stub = file_service_pb2_grpc.FileTransferStub(channel)
         
         # Crear chunks del archivo
@@ -259,7 +259,9 @@ async def get_status(pm: PeerManager = Depends(get_peer_manager)):
             "is_registered": status["is_registered"],
             "config_peer_id": status["config_peer_id"],
             "ip_address": config.peer_ip,
-            "grpc_port": config.grpc_port,
+            "grpc_download_port": config.grpc_download_port,
+            "grpc_upload_port": config.grpc_upload_port,
+            "grpc_list_port": config.grpc_list_port,
             "directory_server": {
                 "url": config.directory_server_url,
                 "status": directory_status,

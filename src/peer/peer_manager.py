@@ -5,7 +5,9 @@ from typing import List, Dict, Any, Optional
 
 from .config import config
 from .rest_client.directory_client import DirectoryClient
-from .grpc_services.file_service import FileTransferServicer, serve_grpc
+from .grpc_services.upload_service import UploadFileServicer, serve_upload_grpc
+from .grpc_services.download_service import DownloadFileServicer, serve_download_grpc
+from .grpc_services.list_service import ListFilesServicer, serve_list_grpc
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +15,14 @@ class PeerManager:
     """Gestor del peer para registro y heartbeat"""
 
     def __init__(self):
-        self.servicer = FileTransferServicer()
+        # Crear los tres servicers independientes
+        self.upload_servicer = UploadFileServicer()
+        self.download_servicer = DownloadFileServicer()
+        self.list_servicer = ListFilesServicer()
+        
+        # Mantener referencia al download_servicer para compatibilidad
+        self.servicer = self.download_servicer
+        
         self.is_registered = False
         self.peer_id: Optional[str] = None
 
@@ -110,11 +119,12 @@ class PeerManager:
                 logger.info(f"[WEB] IP detectada para registro: {registration_ip}")
                 
                 # Registrar con credenciales (crea usuario y devuelve token automáticamente)
+                # Usar el puerto de descarga como puerto principal para registro
                 registration_data = await client.register_peer(
                     config.peer_name, 
                     config.peer_password,
                     registration_ip, 
-                    config.grpc_port
+                    config.grpc_download_port
                 )
                 
                 if registration_data:
@@ -324,16 +334,18 @@ class PeerManager:
         # Dar tiempo para que el servidor de directorio inicie
         await asyncio.sleep(10)
 
-        # Tarea 1: Iniciar servidor gRPC para atender descargas
-        grpc_server_task = asyncio.create_task(serve_grpc(self.servicer))
+        # Tareas gRPC: Iniciar los tres servidores gRPC independientes
+        upload_server_task = asyncio.create_task(serve_upload_grpc(self.upload_servicer))
+        download_server_task = asyncio.create_task(serve_download_grpc(self.download_servicer))
+        list_server_task = asyncio.create_task(serve_list_grpc(self.list_servicer))
 
-        # Tarea 2: Iniciar el bucle de registro y heartbeats
+        # Tarea de heartbeat: Iniciar el bucle de registro y heartbeats
         heartbeat_task = asyncio.create_task(self.start_heartbeat())
 
-        logger.info("[SUCCESS] Servicios de fondo iniciados (gRPC y Heartbeat).")
+        logger.info("[SUCCESS] Servicios de fondo iniciados (3 servidores gRPC + Heartbeat).")
 
         # Guardar referencias a las tareas para poder cancelarlas
-        self.background_tasks = [grpc_server_task, heartbeat_task]
+        self.background_tasks = [upload_server_task, download_server_task, list_server_task, heartbeat_task]
 
     async def stop_services(self):
         """Detiene todos los servicios de fondo del peer."""

@@ -80,7 +80,8 @@ class FileDiscoveryService:
         """Descargar archivo desde un peer específico"""
         peer_id = peer.get('id')
         peer_ip = peer.get('ip_address')
-        peer_port = peer.get('grpc_port')
+        # Usar puerto de descarga específico
+        peer_port = peer.get('grpc_download_port', peer.get('grpc_port', 50051))
 
         if not all([peer_id, peer_ip, peer_port]):
             logger.error("Información incompleta del peer")
@@ -303,7 +304,8 @@ class FileDiscoveryService:
         """Obtener lista de archivos de un peer específico via gRPC"""
         peer_id = peer.get('id')
         peer_ip = peer.get('ip_address')
-        peer_port = peer.get('grpc_port')
+        # Usar puerto de listado específico
+        peer_port = peer.get('grpc_list_port', peer.get('grpc_port', 50071))
 
         try:
             channel = grpc.aio.insecure_channel(f"{peer_ip}:{peer_port}")

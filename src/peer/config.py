@@ -10,7 +10,15 @@ class Config:
         self.peer_name = os.getenv("PEER_NAME", "peer_1")  # Nombre del peer (username)
         self.peer_password = os.getenv("PEER_PASSWORD", "peer123")  # Password del peer
         self.peer_ip = os.getenv("PEER_IP", "0.0.0.0")
-        self.grpc_port = int(os.getenv("GRPC_PORT", "50051"))
+        
+        # Puertos gRPC separados por microservicio
+        self.grpc_download_port = int(os.getenv("GRPC_DOWNLOAD_PORT", "50051"))  # Puerto base para descarga
+        self.grpc_upload_port = int(os.getenv("GRPC_UPLOAD_PORT", "50061"))     # Puerto base + 10 para subida
+        self.grpc_list_port = int(os.getenv("GRPC_LIST_PORT", "50071"))         # Puerto base + 20 para listado
+        
+        # Puerto legacy para compatibilidad (apunta al download)
+        self.grpc_port = self.grpc_download_port
+        
         # REST API Port
         self.rest_port: int = int(os.getenv("REST_PORT", "8001"))
         
