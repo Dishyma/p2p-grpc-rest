@@ -17,13 +17,11 @@ class PeerModel(Base):
     last_heartbeat = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # Relationship
+
     files = relationship("PeerFileModel", back_populates="peer", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Peer(id='{self.id}', name='{self.peer_name}', ip='{self.ip_address}')>"
 
-# Índices para performance
 Index('idx_peers_active_heartbeat', PeerModel.is_active, PeerModel.last_heartbeat)
 Index('idx_peers_name', PeerModel.peer_name)

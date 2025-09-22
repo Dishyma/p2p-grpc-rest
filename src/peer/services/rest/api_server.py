@@ -9,23 +9,27 @@ import uvicorn
 import aiofiles
 import hashlib
 
-from .config import config
-from .peer_manager import PeerManager
-from .file_discovery import FileDiscoveryService
-from .rest_client.directory_client import DirectoryClient
-from ..generated import file_service_pb2, file_service_pb2_grpc
+from ...core.config import config
+from ...core.peer_manager import PeerManager
+from ...clients.grpc.file_discovery import FileDiscoveryService
+from ...clients.rest.directory_client import DirectoryClient
+
+from ...core.path_setup import setup_paths
+setup_paths()
+import file_service_pb2, file_service_pb2_grpc
 import grpc
 
 logger = logging.getLogger(__name__)
 
-# Modelos Pydantic para Swagger
 class PeerStatus(BaseModel):
     peer_name: str
     peer_id: Optional[str]
     is_registered: bool
     config_peer_id: Optional[str]
     ip_address: str
-    grpc_port: int
+    grpc_download_port: int
+    grpc_upload_port: int
+    grpc_list_port: int
     directory_server: Dict[str, Any]
     local_files_count: int
     files_directory: str
@@ -81,14 +85,14 @@ app = FastAPI(
     ## API REST para interactuar con el peer P2P
     
     Esta API permite:
-    - 📊 Ver el estado del peer
-    - 📁 Listar archivos locales y de otros peers
-    - 🔍 Buscar archivos en la red P2P
-    - ⬇️ Descargar archivos desde otros peers (con failover)
-    - ⬆️ Subir archivos usando gRPC UploadFile
-    - 📢 Anunciar archivos al directory server
-    - 🔗 Registrarse con el directory server
-    - 👥 Ver peers activos en la red
+    - Ver el estado del peer
+    - Listar archivos locales y de otros peers
+    - Buscar archivos en la red P2P
+    - Descargar archivos desde otros peers (con failover)
+    - Subir archivos usando gRPC UploadFile
+    - Anunciar archivos al directory server
+    - Registrarse con el directory server
+    - Ver peers activos en la red
     
     ### Flujo típico:
     1. Verificar estado con `/status`
@@ -97,7 +101,6 @@ app = FastAPI(
     4. Anunciar archivos con `/files/announce`
     5. Buscar archivos con `/files/search`
     6. Descargar archivos con `/files/download`
-    
     """,
     version="1.0.0",
     contact={
@@ -109,7 +112,6 @@ app = FastAPI(
     },
 )
 
-# Variable global para el peer manager
 peer_manager: Optional[PeerManager] = None
 file_discovery: Optional[FileDiscoveryService] = None
 
@@ -128,12 +130,10 @@ def get_file_discovery() -> FileDiscoveryService:
 async def _upload_via_grpc(filename: str, content: bytes, pm: PeerManager) -> Dict[str, Any]:
     """Subir archivo usando gRPC UploadFile internamente"""
     try:
-        # Conectar al propio servicio gRPC del peer
-        channel = grpc.aio.insecure_channel(f"localhost:{config.grpc_port}")
+        channel = grpc.aio.insecure_channel(f"localhost:{config.grpc_upload_port}")
         stub = file_service_pb2_grpc.FileTransferStub(channel)
         
-        # Crear chunks del archivo
-        chunk_size = 64 * 1024  # 64KB chunks
+        chunk_size = 64 * 1024
         chunks = []
         
         for i in range(0, len(content), chunk_size):
@@ -148,12 +148,10 @@ async def _upload_via_grpc(filename: str, content: bytes, pm: PeerManager) -> Di
             )
             chunks.append(chunk)
         
-        # Enviar chunks via gRPC
         async def chunk_generator():
             for chunk in chunks:
                 yield chunk
         
-        # Llamar al servicio UploadFile
         response = await stub.UploadFile(chunk_generator())
         
         await channel.close()
@@ -166,7 +164,6 @@ async def _upload_via_grpc(filename: str, content: bytes, pm: PeerManager) -> Di
         
     except Exception as e:
         logger.error(f"Error en upload gRPC: {str(e)}")
-        # Fallback: guardar directamente
         file_path = Path(config.files_directory) / filename
         async with aiofiles.open(file_path, 'wb') as f:
             await f.write(content)
@@ -179,7 +176,7 @@ async def _upload_via_grpc(filename: str, content: bytes, pm: PeerManager) -> Di
         }
 
 @app.get("/", 
-         summary="🏠 Página principal",
+         summary="Página principal",
          description="Endpoint raíz que muestra información básica del peer")
 async def root():
     """Endpoint raíz"""
@@ -187,7 +184,7 @@ async def root():
 
 @app.post("/auth/validate", 
           response_model=TokenValidationResponse,
-          summary="🔑 Validar sesión actual",
+          summary="Validar sesión actual",
           description="Verifica si el token de sesión del peer con el directory server es válido.")
 async def validate_session():
     """Validar el estado del token de autenticación del peer."""
@@ -216,7 +213,7 @@ async def validate_session():
 
 @app.post("/auth/logout", 
           response_model=SuccessMessage,
-          summary="🔒 Cerrar sesión",
+          summary="Cerrar sesión",
           description="Cierra la sesión del peer, lo marca como inactivo en el directory server y detiene los servicios.")
 async def logout_session(pm: PeerManager = Depends(get_peer_manager)):
     """Cierra la sesión actual del peer."""
@@ -232,14 +229,13 @@ async def logout_session(pm: PeerManager = Depends(get_peer_manager)):
 
 @app.get("/status", 
          response_model=PeerStatus,
-         summary="📊 Estado del peer",
+         summary="Estado del peer",
          description="Obtiene el estado completo del peer incluyendo registro, conectividad y archivos")
 async def get_status(pm: PeerManager = Depends(get_peer_manager)):
     """Obtener estado del peer"""
     try:
         status = pm.get_registration_status()
         
-        # Verificar conectividad con directory server
         try:
             async with DirectoryClient() as client:
                 peers = await client.get_active_peers()
@@ -249,7 +245,6 @@ async def get_status(pm: PeerManager = Depends(get_peer_manager)):
             directory_status = "disconnected"
             peers_count = 0
 
-        # Contar archivos locales
         files_directory = Path(config.files_directory)
         local_files_count = sum(1 for _ in files_directory.iterdir() if _.is_file())
 
@@ -259,7 +254,9 @@ async def get_status(pm: PeerManager = Depends(get_peer_manager)):
             "is_registered": status["is_registered"],
             "config_peer_id": status["config_peer_id"],
             "ip_address": config.peer_ip,
-            "grpc_port": config.grpc_port,
+            "grpc_download_port": config.grpc_download_port,
+            "grpc_upload_port": config.grpc_upload_port,
+            "grpc_list_port": config.grpc_list_port,
             "directory_server": {
                 "url": config.directory_server_url,
                 "status": directory_status,
@@ -277,7 +274,7 @@ async def get_status(pm: PeerManager = Depends(get_peer_manager)):
 
 @app.post("/files/announce_one",
           response_model=SuccessMessage,
-          summary="📢 Anunciar un archivo",
+          summary="Anunciar un archivo",
           description="Anuncia un único archivo local al directory server por su nombre")
 async def announce_one_file(
     request: DownloadRequest,
@@ -293,7 +290,7 @@ async def announce_one_file(
 
 @app.post("/login",
           response_model=SuccessMessage,
-          summary="🔐 Iniciar sesión",
+          summary="Iniciar sesión",
           description="Inicia sesión contra el directory server y guarda el token para futuras llamadas")
 async def login(request: LoginRequest):
     try:
@@ -310,7 +307,7 @@ async def login(request: LoginRequest):
 
 @app.get("/files/local", 
          response_model=LocalFilesResponse,
-         summary="📁 Archivos locales",
+         summary="Archivos locales",
          description="Lista todos los archivos disponibles en el directorio local del peer")
 async def list_local_files():
     """Listar archivos locales"""
@@ -338,7 +335,7 @@ async def list_local_files():
 
 @app.get("/files/search", 
          response_model=SearchFilesResponse,
-         summary="🔍 Buscar archivos",
+         summary="Buscar archivos",
          description="Busca un archivo específico en toda la red P2P")
 async def search_files(
     filename: str = Query(..., description="Nombre del archivo a buscar", example="document.pdf"),
@@ -358,7 +355,7 @@ async def search_files(
 
 @app.post("/files/download", 
           response_model=SuccessMessage,
-          summary="⬇️ Descargar archivo",
+          summary="Descargar archivo",
           description="Descarga un archivo desde la red P2P al directorio local")
 async def download_file(
     request: DownloadRequest,
@@ -377,7 +374,7 @@ async def download_file(
 
 @app.post("/files/upload", 
           response_model=UploadResponse,
-          summary="⬆️ Subir archivo",
+          summary="Subir archivo",
           description="Sube un archivo al peer local usando gRPC UploadFile internamente")
 async def upload_file(
     file: UploadFile = File(..., description="Archivo a subir"),
@@ -385,24 +382,19 @@ async def upload_file(
 ):
     """Subir un archivo al peer local usando gRPC UploadFile"""
     try:
-        # Validar archivo
         if not file.filename:
             raise HTTPException(status_code=400, detail="Nombre de archivo requerido")
         
-        # Crear ruta de destino
         file_path = Path(config.files_directory) / file.filename
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Leer contenido del archivo
         content = await file.read()
         file_size = len(content)
         
-        # Usar gRPC UploadFile internamente
         upload_result = await _upload_via_grpc(file.filename, content, pm)
         
         logger.info(f"[FILE] Archivo '{file.filename}' subido exitosamente ({file_size} bytes)")
         
-        # Anunciar archivo al directory server
         await pm.announce_new_file(file.filename, file_size, upload_result['hash'])
         
         return UploadResponse(
@@ -418,7 +410,7 @@ async def upload_file(
 
 @app.post("/files/announce", 
           response_model=SuccessMessage,
-          summary="📢 Anunciar archivos",
+          summary="Anunciar archivos",
           description="Anuncia todos los archivos locales al directory server para que otros peers los puedan encontrar")
 async def announce_files(pm: PeerManager = Depends(get_peer_manager)):
     """Anunciar todos los archivos locales al directory server"""
@@ -431,7 +423,7 @@ async def announce_files(pm: PeerManager = Depends(get_peer_manager)):
 
 @app.post("/register", 
           response_model=RegisterResponse,
-          summary="🔗 Registrar peer",
+          summary="Registrar peer",
           description="Fuerza el registro del peer con el directory server")
 async def force_register(pm: PeerManager = Depends(get_peer_manager)):
     """Forzar registro con el directory server"""
@@ -447,7 +439,7 @@ async def force_register(pm: PeerManager = Depends(get_peer_manager)):
 
 @app.get("/peers", 
          response_model=PeersResponse,
-         summary="👥 Peers activos",
+         summary="Peers activos",
          description="Obtiene la lista de todos los peers activos en la red P2P")
 async def get_active_peers():
     """Obtener peers activos de la red"""
@@ -464,7 +456,7 @@ async def get_active_peers():
 
 @app.get("/files/peer/{peer_id}", 
          response_model=Dict[str, Any],
-         summary="📁 Archivos de peer específico",
+         summary="Archivos de peer específico",
          description="Obtiene archivos de un peer específico usando gRPC ListFiles directamente")
 async def get_peer_files(
     peer_id: str,
@@ -472,11 +464,9 @@ async def get_peer_files(
 ):
     """Obtener archivos de un peer específico usando gRPC"""
     try:
-        # Buscar el peer en el directory server
         async with DirectoryClient() as client:
             peers = await client.get_active_peers()
         
-        # Encontrar el peer específico
         target_peer = None
         for peer in peers:
             if peer.get('peer_id') == peer_id:
@@ -486,7 +476,6 @@ async def get_peer_files(
         if not target_peer:
             raise HTTPException(status_code=404, detail=f"Peer {peer_id} no encontrado o inactivo")
         
-        # Usar gRPC ListFiles directamente
         files = await fd._get_peer_files(target_peer)
         
         return {
@@ -514,9 +503,6 @@ async def start_api_server(pm: PeerManager):
     
     logger.info(f"[WEB] Iniciando FastAPI server en http://{config.peer_ip}:{config.rest_port}")
     
-    # Importante: dentro del contenedor debemos escuchar en 0.0.0.0
-    # para aceptar conexiones desde fuera del contenedor. La IP pública
-    # anunciada al directory server sigue siendo config.peer_ip.
     config_uvicorn = uvicorn.Config(
         app,
         host="0.0.0.0",

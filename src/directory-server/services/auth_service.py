@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 import logging
 import os
 from sqlalchemy.orm import Session
+from ..config import config
 from ..models.peer import PeerModel
 
 logger = logging.getLogger(__name__)
@@ -14,10 +15,10 @@ class AuthService:
     
     def __init__(self, db_session: Session):
         self.db = db_session
-        # Clave secreta para firmar tokens (en producción debería estar en variables de entorno)
-        self.secret_key = os.getenv("JWT_SECRET_KEY", "p2p-directory-secret-key-2024")
-        self.algorithm = "HS256"
-        self.token_expiry_hours = 24
+        # Configuración JWT desde config centralizado
+        self.secret_key = config.jwt_secret_key
+        self.algorithm = config.jwt_algorithm
+        self.token_expiry_hours = config.jwt_expiry_hours
         
     def _hash_password(self, password: str) -> str:
         """Hash simple de contraseña usando SHA256"""

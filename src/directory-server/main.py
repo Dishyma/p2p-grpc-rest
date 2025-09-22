@@ -3,20 +3,18 @@ from contextlib import asynccontextmanager
 import os
 import sys
 
+from .config import config
 from .contextdb.connection import db_connection
 from .api.v1.routers import peers_router, health_router, auth_router
 from .logging_config import setup_directory_logging, get_logger
 
-# Configurar logging profesional
-logger = setup_directory_logging(os.getenv("LOG_LEVEL", "INFO"))
+logger = setup_directory_logging(config.log_level)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle events"""
-    # Startup
     logger.info("Starting directory server")
     
-    # Crear tablas de base de datos
     try:
         db_connection.create_tables()
         logger.info("Database tables created successfully")
@@ -26,28 +24,25 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Shutdown
     logger.info("Shutting down directory server...")
 
-# Crear aplicación FastAPI
 app = FastAPI(
-    title="P2P Directory Server",
-    description="Servidor de directorio para red P2P",
-    version="1.0.0",
+    title=config.app_title,
+    description=config.app_description,
+    version=config.app_version,
     lifespan=lifespan
 )
 
-# Incluir routers
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(peers_router, prefix="/api/v1")
-app.include_router(health_router, prefix="/api/v1")
+app.include_router(auth_router, prefix=config.api_prefix)
+app.include_router(peers_router, prefix=config.api_prefix)
+app.include_router(health_router, prefix=config.api_prefix)
 
 @app.get("/")
 async def root():
     """Endpoint raíz"""
     return {
-        "message": "P2P Directory Server",
-        "version": "1.0.0",
+        "message": config.app_title,
+        "version": config.app_version,
         "docs": "/docs"
     }
 
@@ -55,7 +50,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 8000)),
-        reload=os.getenv("ENVIRONMENT", "development") == "development"
+        host=config.host,
+        port=config.port,
+        reload=config.reload
     )
