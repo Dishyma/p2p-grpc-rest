@@ -50,12 +50,18 @@ resource "aws_instance" "peer" {
     peer_name             = "peer_${count.index + 1}"
     peer_password         = "peer123" # for demo
     peer_ip               = "0.0.0.0"
-    grpc_port             = 50051
+    grpc_download_port    = 50051 + count.index
+    grpc_upload_port      = 50061 + count.index
+    grpc_list_port        = 50071 + count.index
     rest_port             = var.peer_rest_base_port + count.index
     files_directory       = "/home/ec2-user/files"
     directory_server_url  = "http://${aws_instance.directory.public_ip}:${var.directory_server_port}/api/v1"
     heartbeat_interval    = 30
     log_level             = "INFO"
+    # Por ahora, sin peers amigos para evitar dependencias circulares
+    # Los peers amigos se configurarán después del despliegue inicial
+    peer_friend_primary_grpc = ""
+    peer_friend_backup_grpc  = ""
   })
 
   root_block_device {

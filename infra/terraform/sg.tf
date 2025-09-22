@@ -81,11 +81,29 @@ resource "aws_security_group" "sg_peers" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # gRPC port
+  # gRPC Download port
   ingress {
-    description = "gRPC"
+    description = "gRPC Download"
     from_port   = 50051
-    to_port     = 50051
+    to_port     = 50054
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # gRPC Upload ports
+  ingress {
+    description = "gRPC Upload"
+    from_port   = 50061
+    to_port     = 50064
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # gRPC List ports
+  ingress {
+    description = "gRPC List"
+    from_port   = 50071
+    to_port     = 50074
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }

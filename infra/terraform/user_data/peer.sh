@@ -15,12 +15,16 @@ git_branch="${git_branch}"
 peer_name="${peer_name}"
 peer_password="${peer_password}"
 peer_ip="${peer_ip}"
-grpc_port="${grpc_port}"
+grpc_download_port="${grpc_download_port}"
+grpc_upload_port="${grpc_upload_port}"
+grpc_list_port="${grpc_list_port}"
 rest_port="${rest_port}"
 files_directory="${files_directory}"
 directory_server_url="${directory_server_url}"
 heartbeat_interval="${heartbeat_interval}"
 log_level="${log_level}"
+peer_friend_primary_grpc="${peer_friend_primary_grpc}"
+peer_friend_backup_grpc="${peer_friend_backup_grpc}"
 
 # Clone repo
 cd /home/ec2-user
@@ -65,16 +69,22 @@ done
 # Run container
 /usr/bin/docker run -d \
   --name p2p-peer \
-  -p ${grpc_port}:${grpc_port} \
+  -p ${grpc_download_port}:${grpc_download_port} \
+  -p ${grpc_upload_port}:${grpc_upload_port} \
+  -p ${grpc_list_port}:${grpc_list_port} \
   -p ${rest_port}:${rest_port} \
   -e PEER_NAME="$peer_name" \
   -e PEER_PASSWORD="$peer_password" \
   -e PEER_IP="$PEER_IP" \
-  -e GRPC_PORT="$grpc_port" \
+  -e GRPC_DOWNLOAD_PORT="$grpc_download_port" \
+  -e GRPC_UPLOAD_PORT="$grpc_upload_port" \
+  -e GRPC_LIST_PORT="$grpc_list_port" \
   -e REST_PORT="$rest_port" \
   -e FILES_DIRECTORY="$files_directory" \
   -e DIRECTORY_SERVER_URL="$directory_server_url" \
   -e HEARTBEAT_INTERVAL="$heartbeat_interval" \
   -e LOG_LEVEL="$log_level" \
+  -e PEER_FRIEND_PRIMARY_GRPC="$peer_friend_primary_grpc" \
+  -e PEER_FRIEND_BACKUP_GRPC="$peer_friend_backup_grpc" \
   -v "$files_directory":"$files_directory" \
   p2p-peer
