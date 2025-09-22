@@ -49,7 +49,9 @@ services:
       - ./data:/app/data
     command: ["python", "-m", "src.peer.main", "--api"]
     ports:
-      - "50051:50051"   # gRPC
+      - "50051:50051"   # gRPC Download
+      - "50061:50061"   # gRPC Upload
+      - "50071:50071"   # gRPC List
       - "8001:8001"     # REST API
 
   peer2:
@@ -69,8 +71,10 @@ services:
       - ./data:/app/data
     command: ["python", "-m", "src.peer.main", "--api"]
     ports:
-      - "50052:50052"
-      - "8002:8002"
+      - "50052:50052"   # gRPC Download
+      - "50062:50062"   # gRPC Upload
+      - "50072:50072"   # gRPC List
+      - "8002:8002"     # REST API
 
   peer3:
     build:
@@ -89,8 +93,10 @@ services:
       - ./data:/app/data
     command: ["python", "-m", "src.peer.main", "--api"]
     ports:
-      - "50053:50053"
-      - "8003:8003"
+      - "50053:50053"   # gRPC Download
+      - "50063:50063"   # gRPC Upload
+      - "50073:50073"   # gRPC List
+      - "8003:8003"     # REST API
 
   peer4:
     build:
@@ -109,8 +115,10 @@ services:
       - ./data:/app/data
     command: ["python", "-m", "src.peer.main", "--api"]
     ports:
-      - "50054:50054"
-      - "8004:8004"
+      - "50054:50054"   # gRPC Download
+      - "50064:50064"   # gRPC Upload
+      - "50074:50074"   # gRPC List
+      - "8004:8004"     # REST API
 
 volumes:
   pgdata:
