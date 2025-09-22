@@ -115,7 +115,11 @@ p2p-system/
    Esto iniciará:
    - Directory Server (puerto 8080)
    - PostgreSQL (puerto 5432)
-   - 3 peers de ejemplo (puertos gRPC: 50051, 50052, 50053)
+   - 4 peers de ejemplo con microservicios gRPC independientes:
+     - Peer1: Download(50051), Upload(50061), List(50071), REST(8001)
+     - Peer2: Download(50052), Upload(50062), List(50072), REST(8002)
+     - Peer3: Download(50053), Upload(50063), List(50073), REST(8003)
+     - Peer4: Download(50054), Upload(50064), List(50074), REST(8004)
 
 4. **Verificar que funciona**
    ```bash
@@ -229,12 +233,17 @@ curl -X POST http://localhost:8080/api/v1/peers/register \
   }'
 ```
 
-### Peer gRPC Service
+### Peer gRPC Services (Microservicios Independientes)
 
-Servicios disponibles:
-- `ListFiles`: Listar archivos del peer
-- `DownloadFile`: Descargar archivo (streaming)
+**Upload Service** (puerto base + 10):
+- `UploadFile`: Subir archivo al peer (streaming)
+
+**Download Service** (puerto base):
+- `DownloadFile`: Descargar archivo desde el peer (streaming)
 - `GetFileInfo`: Obtener información del archivo
+
+**List Service** (puerto base + 20):
+- `ListFiles`: Listar archivos disponibles en el peer
 
 ## 🛠️ Comandos de Desarrollo
 
@@ -286,9 +295,14 @@ logger.info(
 
 ```env
 # configs/peer1.env
-PEER_ID=peer-001
+PEER_NAME=peer_1
+PEER_PASSWORD=peer123
 PEER_IP=0.0.0.0
-GRPC_PORT=50051
+# Puertos gRPC separados por microservicio
+GRPC_DOWNLOAD_PORT=50051
+GRPC_UPLOAD_PORT=50061
+GRPC_LIST_PORT=50071
+REST_PORT=8001
 FILES_DIRECTORY=./data/peer1_files
 DIRECTORY_SERVER_URL=http://directory-server:8080/api/v1
 HEARTBEAT_INTERVAL=30
