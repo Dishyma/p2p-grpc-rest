@@ -190,3 +190,10 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+.terraform.lock.hcl.backup
