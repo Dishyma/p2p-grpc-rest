@@ -43,11 +43,11 @@ class FileDiscoveryService:
         """
         try:
             async with DirectoryClient() as client:
-                search_result = await client.search_files(filename)
+                files_list = await client.search_files(filename)
                 
-                if 'files' in search_result:
+                if files_list:
                     peers_with_file = []
-                    for file_info in search_result['files']:
+                    for file_info in files_list:
                         peers_with_file.append({
                             'id': file_info.get('id'),
                             'ip_address': file_info.get('ip_address'),

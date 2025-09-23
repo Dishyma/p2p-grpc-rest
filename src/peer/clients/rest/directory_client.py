@@ -147,7 +147,7 @@ class DirectoryClient:
             logger.error(f"Error enviando heartbeat: {str(e)}")
             return False
 
-    async def get_peer_files(self, filename: str) -> List[Dict[str, Any]]:
+    async def search_files(self, filename: str) -> List[Dict[str, Any]]:
         """Obtener información de peers que tienen un archivo específico"""
         try:
             url = f"{self.base_url}/peers/files/search"
