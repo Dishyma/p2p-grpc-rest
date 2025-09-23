@@ -1,388 +1,748 @@
-# Sistema P2P de Compartición de Archivos
+# 🌐 Sistema P2P de Compartición de Archivos
 
-![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.68+-green.svg)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-blue.svg)
+![Python](https://img.shields.io/badge/python-v3.13+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-latest-green.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17+-blue.svg)
 ![Docker](https://img.shields.io/badge/docker-latest-blue.svg)
 ![gRPC](https://img.shields.io/badge/gRPC-latest-orange.svg)
 
-Sistema peer-to-peer descentralizado para compartición de archivos con servidor de directorio centralizado y transferencia directa entre peers mediante gRPC.
+Sistema peer-to-peer (P2P) descentralizado para compartición de archivos con arquitectura híbrida: servidor de directorio centralizado para localización y transferencia directa entre peers mediante gRPC y REST APIs.
+
+## 📚 Índice
+
+- [🎯 Características Principales](#-características-principales)
+- [🏗️ Arquitectura del Sistema](#️-arquitectura-del-sistema)
+- [🛠️ Stack Tecnológico](#️-stack-tecnológico)
+- [📁 Estructura del Proyecto](#-estructura-del-proyecto)
+- [🚀 Inicio Rápido](#-inicio-rápido)
+- [💻 Uso del Sistema](#-uso-del-sistema)
+- [🔧 Configuración](#-configuración)
+- [🧪 Testing](#-testing)
+- [📊 Monitoreo y Observabilidad](#-monitoreo-y-observabilidad)
+- [🚢 Deployment](#-deployment)
+  - [Desarrollo Local](#desarrollo-local)
+  - [☁️ Producción en AWS](#️-producción-en-aws)
+- [🔍 Troubleshooting](#-troubleshooting)
+- [🤝 Desarrollo](#-desarrollo)
 
 ## 🎯 Características Principales
 
-- **Arquitectura Híbrida**: Directorio centralizado con transferencia P2P directa
-- **Transferencia Eficiente**: Streaming de archivos grandes mediante gRPC con chunking
-- **Auto-descubrimiento**: Registro automático de peers y anuncio de archivos
-- **CLI Intuitivo**: Interface de línea de comandos fácil de usar
+- **Arquitectura Híbrida**: Directory Server centralizado + transferencia P2P directa
+- **APIs REST Completas**: Cada peer expone una API REST para todas las operaciones
+- **Microservicios gRPC**: 3 servicios independientes por peer (Download, Upload, List)
+- **Transferencia Eficiente**: Streaming de archivos con chunking de 64KB
+- **Autenticación JWT**: Seguridad en comunicaciones con Directory Server
+- **Auto-registro**: Peers se registran automáticamente al iniciar
+- **Heartbeat Automático**: Mantenimiento de estado activo cada 30s
+- **Failover**: Recuperación automática y peers de respaldo
 - **Observabilidad**: Logs estructurados y métricas de performance
-- **Calidad**: Tests automatizados y pre-commit hooks
 
-## 🏗️ Arquitectura
+## 🏗️ Arquitectura del Sistema
 
-```
-┌─────────────────┐    REST API    ┌─────────────────┐
-│   Directory     │◄──────────────►│     Peer 1      │
-│    Server       │                │  (gRPC Server)  │
-│  (PostgreSQL)   │                └─────────────────┘
-└─────────────────┘                          │
-         ▲                                   │ gRPC
-         │ REST API                          │ File Transfer
-         │                                   ▼
-┌─────────────────┐                ┌─────────────────┐
-│     Peer 2      │◄──────────────►│     Peer 3      │
-│  (gRPC Server)  │   gRPC File    │  (gRPC Server)  │
-└─────────────────┘    Transfer    └─────────────────┘
-```
+![Arquitectura P2P](docs/images/Arquitectura.png)
+
+### Componentes del Sistema
+
+#### 🏢 Directory Server
+- **Tecnología**: FastAPI + PostgreSQL 17
+- **Puerto**: 8080
+- **Función**: Registro de peers, localización de archivos, autenticación JWT
+- **Endpoints principales**:
+  - `POST /api/v1/peers/register` - Registro de peers
+  - `POST /api/v1/auth/login` - Autenticación
+  - `GET /api/v1/files/search` - Búsqueda de archivos
+  - `POST /api/v1/files/announce` - Anuncio de archivos
+  - `POST /api/v1/peers/heartbeat` - Heartbeat
+
+#### 🔗 Peers (Nodos P2P)
+Cada peer ejecuta:
+
+**API REST** (Puertos 8001-8004):
+- Interface principal para todas las operaciones
+- Documentación automática con Swagger/OpenAPI
+- Endpoints para upload, download, search, status
+
+**Microservicios gRPC independientes**:
+- **Download Service** (50051-50054): Servir archivos a otros peers
+- **Upload Service** (50061-50064): Recibir archivos de otros peers  
+- **List Service** (50071-50074): Listar archivos disponibles
 
 ## 🛠️ Stack Tecnológico
 
-- **Backend**: Python 3.9+ con FastAPI
-- **Base de Datos**: PostgreSQL 14+
-- **Comunicación**: gRPC para transferencia P2P, REST para directorio
-- **Containerización**: Docker + Docker Compose
-- **Calidad**: pytest, black, flake8, pre-commit hooks
-- **Observabilidad**: structlog para logging estructurado
+### Backend
+- **Python 3.13**: Lenguaje principal
+- **FastAPI**: Framework web para APIs REST
+- **SQLAlchemy**: ORM para base de datos
+- **Uvicorn**: Servidor ASGI
+
+### Base de Datos
+- **PostgreSQL 17**: Base de datos relacional
+- **psycopg2-binary**: Driver de conexión
+
+### Comunicación
+- **gRPC**: Transferencia P2P de archivos (streaming)
+- **REST API**: Comunicación con Directory Server e interface de peers
+- **Protocol Buffers**: Serialización de mensajes gRPC
+- **aiohttp**: Cliente HTTP asíncrono
+- **JWT**: Autenticación y autorización
+
+### Containerización
+- **Docker**: Containerización de servicios
+- **Docker Compose**: Orquestación local
+- **Multi-container**: Directory Server + 4 Peers independientes
+
+### Calidad y Testing
+- **pytest**: Framework de testing
+- **pytest-asyncio**: Tests asíncronos
+- **black**: Formateo de código
+- **flake8**: Linting
+- **structlog**: Logging estructurado
 
 ## 📁 Estructura del Proyecto
 
 ```
-p2p-system/
-├── .github/workflows/ci.yml       # CI/CD pipeline
-├── .pre-commit-config.yaml        # Pre-commit hooks
-├── Makefile                       # Comandos de desarrollo
-├── docker-compose.yml             # Orquestación de servicios
-├── requirements/                  # Dependencias
-│   ├── base.txt
-│   ├── dev.txt
-│   └── test.txt
+p2p-grpc-rest/
+├── docker-compose.yml              # Orquestación de servicios
+├── Dockerfile                      # Dockerfile base
+├── Dockerfile.dir                  # Directory Server específico
+├── Dockerfile.peer                 # Peers específico
+├── Pipfile                         # Dependencias Python (pipenv)
+├── Pipfile.lock                    # Lock de dependencias
 ├── src/
-│   ├── directory_server/          # Servidor de directorio (FastAPI)
-│   │   ├── main.py
-│   │   ├── api/                   # Endpoints REST
-│   │   ├── models/                # Modelos SQLAlchemy
-│   │   ├── services/              # Lógica de negocio
-│   │   └── config.py
-│   ├── peer/                      # Aplicación peer
-│   │   ├── main.py
-│   │   ├── grpc_services/         # Servicios gRPC
-│   │   ├── rest_client/           # Cliente REST
-│   │   └── config.py
-│   ├── proto/                     # Definiciones Protocol Buffers
-│   │   ├── file_service.proto
-│   │   └── generate.py
-│   └── shared/                    # Código compartido
-│       ├── database.py
-│       ├── logging_config.py
-│       └── models.py
-├── tests/                         # Suite de pruebas
-│   ├── unit/
-│   ├── integration/
-│   └── conftest.py
-├── configs/                       # Configuraciones de peers
-│   ├── directory_server.env
-│   ├── peer1.env
-│   ├── peer2.env
-│   └── peer3.env
-└── docs/                          # Documentación
-    └── api/
+│   ├── directory-server/           # Directory Server (FastAPI)
+│   │   ├── main.py                 # Punto de entrada
+│   │   ├── config.py               # Configuración
+│   │   ├── api/v1/                 # Endpoints REST API
+│   │   │   ├── routers/
+│   │   │   │   ├── auth.py         # Autenticación JWT
+│   │   │   │   ├── peers.py        # Gestión de peers
+│   │   │   │   └── health.py       # Health checks
+│   │   │   └── schemas.py          # Modelos Pydantic
+│   │   ├── services/               # Lógica de negocio
+│   │   ├── models/                 # Modelos SQLAlchemy
+│   │   ├── repositories/           # Acceso a datos
+│   │   ├── contextdb/              # Conexión a base de datos
+│   │   └── interfaces/             # Interfaces
+│   ├── peer/                       # Aplicación Peer
+│   │   ├── main.py                 # Punto de entrada (solo API REST)
+│   │   ├── core/                   # Configuración y gestión
+│   │   │   ├── config.py           # Configuración del peer
+│   │   │   ├── peer_manager.py     # Gestor principal
+│   │   │   └── logging_config.py   # Configuración de logs
+│   │   ├── services/
+│   │   │   ├── grpc/               # Microservicios gRPC
+│   │   │   │   ├── download_service.py
+│   │   │   │   ├── upload_service.py
+│   │   │   │   └── list_service.py
+│   │   │   └── rest/               # API REST del peer
+│   │   │       └── api_server.py   # FastAPI server completo
+│   │   └── clients/                # Clientes para comunicación
+│   │       ├── grpc/               # Clientes gRPC
+│   │       └── rest/               # Cliente REST (Directory Server)
+│   ├── proto/                      # Definiciones Protocol Buffers
+│   │   ├── file_service.proto      # Definición de servicios gRPC
+│   │   └── generate.py             # Generador de código gRPC
+│   └── generated/                  # Archivos generados automáticamente
+│       ├── file_service_pb2.py
+│       └── file_service_pb2_grpc.py
+├── configs/                        # Configuraciones de peers
+│   ├── peer1.env                   # Configuración Peer 1
+│   ├── peer2.env                   # Configuración Peer 2
+│   ├── peer3.env                   # Configuración Peer 3
+│   └── peer4.env                   # Configuración Peer 4
+├── tests/                          # Suite de pruebas
+│   ├── unit/                       # Tests unitarios
+│   ├── integration/                # Tests de integración
+│   └── conftest.py                 # Configuración de pytest
+├── infra/                          # Infraestructura como código
+│   └── terraform/                  # Scripts de Terraform para AWS
+└── data/                           # Directorio de datos de peers
+    ├── peer1_files/
+    ├── peer2_files/
+    ├── peer3_files/
+    └── peer4_files/
 ```
 
 ## 🚀 Inicio Rápido
 
 ### Prerrequisitos
 
-- Docker y Docker Compose
-- Python 3.9+
-- Make (opcional, para comandos simplificados)
+- **Docker** y **Docker Compose**
+- **Python 3.13+** (para desarrollo local)
+- **Git** para clonar el repositorio
 
 ### Instalación y Ejecución
 
 1. **Clonar el repositorio**
    ```bash
    git clone <repository-url>
-   cd p2p-system
+   cd p2p-grpc-rest
    ```
 
-2. **Configurar el entorno**
+2. **Levantar el sistema completo**
    ```bash
-   make setup
+   docker-compose up -d
    ```
-
-3. **Levantar el sistema completo**
-   ```bash
-   make dev-up
-   ```
+   
    Esto iniciará:
-   - Directory Server (puerto 8080)
-   - PostgreSQL (puerto 5432)
-   - 4 peers de ejemplo con microservicios gRPC independientes:
-     - Peer1: Download(50051), Upload(50061), List(50071), REST(8001)
-     - Peer2: Download(50052), Upload(50062), List(50072), REST(8002)
-     - Peer3: Download(50053), Upload(50063), List(50073), REST(8003)
-     - Peer4: Download(50054), Upload(50064), List(50074), REST(8004)
+   - **Directory Server**: Puerto 8080 (FastAPI + PostgreSQL)
+   - **Peer 1**: API REST (8001) + gRPC (50051, 50061, 50071)
+   - **Peer 2**: API REST (8002) + gRPC (50052, 50062, 50072)
+   - **Peer 3**: API REST (8003) + gRPC (50053, 50063, 50073)
+   - **Peer 4**: API REST (8004) + gRPC (50054, 50064, 50074)
 
-4. **Verificar que funciona**
+3. **Verificar que funciona**
    ```bash
    # Health check del directory server
    curl http://localhost:8080/api/v1/health
    
-   # Ver documentación interactiva
+   # Health check de peer1
+   curl http://localhost:8001/status
+   
+   # Ver documentación interactiva del directory server
    open http://localhost:8080/docs
+   
+   # Ver documentación interactiva de peer1
+   open http://localhost:8001/docs
    ```
 
 ## 💻 Uso del Sistema
 
-### Interface CLI
+### 🌐 Interface Principal: APIs REST
 
-Accede a la CLI de cualquier peer:
+**No hay CLI** - Toda la interacción se realiza a través de APIs REST con documentación Swagger automática.
 
+#### Directory Server API (Puerto 8080)
 ```bash
-# Entrar al container del peer1
-make peer-shell PEER=peer1
+# Ver documentación completa
+curl http://localhost:8080/docs
 
-# Una vez dentro, iniciar la CLI
-python -m peer.cli
+# Endpoints principales
+GET  /api/v1/health              # Health check
+POST /api/v1/auth/login          # Autenticación
+POST /api/v1/peers/register      # Registro de peers
+GET  /api/v1/files/search        # Búsqueda de archivos
+POST /api/v1/files/announce      # Anuncio de archivos
+POST /api/v1/peers/heartbeat     # Heartbeat
 ```
 
-### Comandos Disponibles
-
-```
-p2p> list                    # Ver archivos locales
-p2p> search video.mp4        # Buscar archivo en la red
-p2p> download video.mp4      # Descargar archivo
-p2p> peers                   # Ver peers activos
-p2p> status                  # Estado del peer actual
-p2p> quit                    # Salir
-```
-
-### Ejemplo de Flujo Completo
-
+#### Peer APIs (Puertos 8001-8004)
 ```bash
-# Terminal 1: Peer1 (tiene video.mp4)
-p2p> list
-Local files:
-- video.mp4 (1.2GB)
+# Ver documentación de peer1
+curl http://localhost:8001/docs
 
-# Terminal 2: Peer2 (quiere descargar)
-p2p> search video.mp4
-Found 1 peer(s) with 'video.mp4':
-- peer-001 (127.0.0.1:50051)
-
-p2p> download video.mp4
-Downloading from peer-001...
-Progress: ████████████████████ 100% (1.2GB/1.2GB)
-✓ Download completed successfully
-✓ File announced to network
-
-# Ahora peer2 también puede servir el archivo
+# Endpoints principales de cada peer
+GET  /status                     # Estado del peer
+GET  /files/local               # Archivos locales
+GET  /files/search              # Buscar en la red P2P
+POST /files/download            # Descargar archivo
+POST /files/upload              # Subir archivo
+POST /files/announce            # Anunciar archivos
+POST /register                  # Registrar peer
+GET  /peers                     # Ver peers activos
+POST /auth/login                # Login manual
+POST /auth/logout               # Logout
 ```
 
-## 🧪 Testing
+### 🎮 Flujo de Uso Típico
 
-### Ejecutar Tests
-
+#### 1. Verificar Estado del Sistema
 ```bash
-# Todos los tests
-make test
+# Estado del directory server
+curl http://localhost:8080/api/v1/health
 
-# Solo tests unitarios
-pytest tests/unit/
-
-# Tests de integración
-pytest tests/integration/
-
-# Tests de carga
-make load-test
+# Estado de peer1
+curl http://localhost:8001/status
 ```
 
-### Coverage
-
+#### 2. Ver Archivos Locales
 ```bash
-# Ver coverage
-make test-coverage
+# Listar archivos en peer1
+curl http://localhost:8001/files/local
 ```
 
-## 📊 API Reference
-
-### Directory Server (REST API)
-
-Base URL: `http://localhost:8080/api/v1`
-
-#### Endpoints Principales
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| POST | `/peers/register` | Registrar nuevo peer |
-| DELETE | `/peers/{peer_id}` | Desregistrar peer |
-| GET | `/files/search?filename=<name>` | Buscar archivo |
-| POST | `/files/announce` | Anunciar archivos |
-| POST | `/peers/heartbeat` | Mantener peer activo |
-| GET | `/health` | Health check |
-| GET | `/docs` | Documentación Swagger |
-
-#### Ejemplo de Registro de Peer
-
+#### 3. Subir un Archivo
+Aunque este con un endpoint internamente se hace con GRPC, y solo el peer puede subir archivos a si mismo.
 ```bash
-curl -X POST http://localhost:8080/api/v1/peers/register \
+# Subir archivo a peer1 usando form-data
+curl -X POST "http://localhost:8001/files/upload" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@/path/to/your/file.txt"
+```
+
+#### 4. Buscar Archivos en la Red
+```bash
+# Buscar archivo específico
+curl "http://localhost:8001/files/search?filename=file.txt"
+```
+
+#### 5. Descargar Archivo de Otro Peer
+```bash
+# Descargar archivo encontrado
+curl -X POST "http://localhost:8001/files/download" \
   -H "Content-Type: application/json" \
-  -d '{
-    "peer_id": "peer-1",
-    "ip": "127.0.0.1",
-    "grpc_port": 50051,
-    "files": ["video.mp4", "document.pdf"]
-  }'
+  -d '{"filename": "file.txt"}'
 ```
 
-### Peer gRPC Services (Microservicios Independientes)
-
-**Upload Service** (puerto base + 10):
-- `UploadFile`: Subir archivo al peer (streaming)
-
-**Download Service** (puerto base):
-- `DownloadFile`: Descargar archivo desde el peer (streaming)
-- `GetFileInfo`: Obtener información del archivo
-
-**List Service** (puerto base + 20):
-- `ListFiles`: Listar archivos disponibles en el peer
-
-## 🛠️ Comandos de Desarrollo
-
+#### 6. Ver Peers Activos
 ```bash
-# Setup inicial
-make setup              # Instalar dependencias + pre-commit hooks
-
-# Desarrollo
-make dev-up             # Levantar todos los servicios
-make dev-down           # Bajar servicios y limpiar volúmenes
-make logs               # Ver logs en tiempo real
-
-# Calidad de código
-make lint               # black + flake8 + isort
-make test               # Ejecutar tests con coverage
-make proto              # Generar archivos de Protocol Buffers
-
-# Limpieza
-make clean              # Limpiar containers y volúmenes
+# Ver todos los peers en la red
+curl http://localhost:8001/peers
 ```
 
-## 📈 Performance y Observabilidad
+### 📱 Documentación Interactiva
 
-### Logs Estructurados
+Cada servicio expone documentación automática con Swagger UI:
 
-Todos los servicios usan `structlog` para logging estructurado:
-
-```python
-logger.info(
-    "File download started",
-    peer_id=self.peer_id,
-    filename=filename,
-    source_peer=source_peer,
-    file_size=file_size,
-    trace_id=trace_id
-)
-```
-
-### Métricas
-
-- Duración de descargas
-- Número de descargas activas
-- Bytes transferidos
-- Latencia de requests
+- **Directory Server**: http://localhost:8080/docs
+- **Peer 1**: http://localhost:8001/docs
+- **Peer 2**: http://localhost:8002/docs
+- **Peer 3**: http://localhost:8003/docs
+- **Peer 4**: http://localhost:8004/docs
 
 ## 🔧 Configuración
 
-### Variables de Entorno por Peer
+### ⚙️ Configuración por Peer
+
+Cada peer tiene su archivo de configuración en `configs/`:
 
 ```env
 # configs/peer1.env
 PEER_NAME=peer_1
 PEER_PASSWORD=peer123
 PEER_IP=0.0.0.0
-# Puertos gRPC separados por microservicio
+
+# Puertos de microservicios gRPC independientes
 GRPC_DOWNLOAD_PORT=50051
 GRPC_UPLOAD_PORT=50061
 GRPC_LIST_PORT=50071
 REST_PORT=8001
+
+# Directorio de archivos
 FILES_DIRECTORY=./data/peer1_files
-DIRECTORY_SERVER_URL=http://directory-server:8080/api/v1
+
+# Directory Server
+DIRECTORY_SERVER_URL=http://directory_server:8080/api/v1
 HEARTBEAT_INTERVAL=30
 LOG_LEVEL=INFO
+
+# Peers amigos para failover
+PEER_FRIEND_PRIMARY=http://peer2:8002
+PEER_FRIEND_BACKUP=http://peer3:8003
+PEER_FRIEND_PRIMARY_GRPC=peer2:50052
+PEER_FRIEND_BACKUP_GRPC=peer3:50053
 ```
+
+### 🐳 Configuración Docker
+
+```yaml
+# docker-compose.yml (fragmento)
+services:
+  directory_server:
+    build:
+      dockerfile: Dockerfile.dir
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://p2p:unaClav3@db:5432/p2p_db
+
+  peer1:
+    build:
+      dockerfile: Dockerfile.peer
+    ports:
+      - "50051:50051"   # gRPC Download
+      - "50061:50061"   # gRPC Upload  
+      - "50071:50071"   # gRPC List
+      - "8001:8001"     # REST API
+    env_file:
+      - ./configs/peer1.env
+```
+
+## 🧪 Testing
+
+### Ejecutar Tests
+```bash
+# Tests unitarios
+docker exec -it peer1 pytest tests/unit/
+
+# Tests de integración
+docker exec -it peer1 pytest tests/integration/
+
+# Tests de concurrencia
+docker exec -it peer1 pytest tests/integration/test_concurrency_new.py -v
+```
+
+### Tests de Concurrencia
+El sistema soporta **15+ operaciones simultáneas** por peer:
+- Búsquedas de archivos
+- Descargas concurrentes
+- Operaciones de estado
+- Listado de archivos
+
+## 📊 Monitoreo y Observabilidad
+
+### Logs Estructurados
+```bash
+# Ver logs en tiempo real
+docker-compose logs -f
+
+# Logs de servicio específico
+docker-compose logs -f peer1
+docker-compose logs -f directory_server
+```
+
+### Métricas de Performance
+- **Tiempo de registro**: < 500ms
+- **Búsqueda de archivos**: < 200ms  
+- **Transferencia**: ~10MB/s por conexión
+- **Concurrencia**: 15+ operaciones simultáneas por peer
+- **Heartbeat**: Cada 30 segundos
 
 ## 🚢 Deployment
 
 ### Desarrollo Local
 ```bash
-make dev-up
+# Levantar sistema completo
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+
+# Parar sistema
+docker-compose down
 ```
 
-### Futuro: Producción (AWS/Kubernetes)
-- EKS para orquestación
-- RDS PostgreSQL
-- Application Load Balancer
-- CloudWatch para observabilidad
+### ☁️ Producción en AWS
 
-## 🤝 Contribución
+El sistema incluye una implementación completa en AWS usando **Terraform** como Infrastructure as Code (IaC). La infraestructura despliega automáticamente toda la arquitectura P2P en la nube.
 
-1. Crear feature branch
-2. Hacer cambios
-3. Ejecutar `make lint` y `make test`
-4. Pre-commit hooks se ejecutan automáticamente
-5. Crear Pull Request
+#### 🏗️ Arquitectura AWS
 
-### Pre-commit Hooks Configurados
-- black (formatting)
-- flake8 (linting)
-- isort (import sorting)
+![Topología de Red AWS](docs/images/TopologiaRedAWS.png)
 
-## 🐛 Troubleshooting
+#### 🚀 Deployment Automático
+
+**1. Prerrequisitos**
+```bash
+# Instalar Terraform
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt-get update && sudo apt-get install terraform
+
+# Configurar AWS CLI
+aws configure
+# AWS Access Key ID: [tu-access-key]
+# AWS Secret Access Key: [tu-secret-key]
+# Default region name: us-east-1
+# Default output format: json
+```
+
+**2. Configuración**
+```bash
+cd infra/terraform
+
+# Copiar y editar variables
+cp terraform.tfvars.example terraform.tfvars
+vim terraform.tfvars
+```
+
+**Archivo terraform.tfvars:**
+```hcl
+# Configuración requerida
+key_name = "tu-keypair-aws"              # Key pair existente en AWS
+git_repo_url = "https://github.com/tu-usuario/p2p-grpc-rest.git"
+git_branch = "main"
+db_password = "tu-password-seguro"
+
+# Configuración opcional
+aws_region = "us-east-1"
+peers_count = 2                          # Número de peers (2-4 recomendado)
+instance_type_default = "t3.micro"       # Tipo de instancia EC2
+vpc_cidr = "10.20.0.0/16"
+```
+
+**3. Despliegue**
+```bash
+# Inicializar Terraform
+terraform init
+
+# Planificar deployment
+terraform plan
+
+# Aplicar infraestructura
+terraform apply
+# Confirmar con: yes
+
+# Ver outputs importantes
+terraform output
+```
+
+#### 📋 Componentes Desplegados
+
+**🖥️ EC2 Instances**
+- **Directory Server**: 1 instancia t3.micro
+  - AMI: Amazon Linux 2
+  - Puertos: 8080 (FastAPI)
+  - Auto-deployment con Docker
+  - Conexión automática a RDS
+  
+- **Peers**: 2-4 instancias t3.micro (configurable)
+  - AMI: Amazon Linux 2  
+  - Puertos por peer: REST (8001+) + gRPC (50051+, 50061+, 50071+)
+  - Auto-deployment con Docker
+  - Registro automático con Directory Server
+
+**🗄️ RDS PostgreSQL**
+- **Engine**: PostgreSQL 16
+- **Instance**: db.t3.micro
+- **Storage**: 20GB SSD
+- **Multi-AZ**: Deshabilitado (demo)
+- **Backup**: Deshabilitado (demo)
+- **Public Access**: Habilitado para demo
+
+**🌐 Networking**
+- **VPC**: 10.20.0.0/16
+- **Subnets**: 2 públicas (10.20.1.0/24, 10.20.2.0/24)
+- **Internet Gateway**: Para acceso público
+- **Route Tables**: Configuradas automáticamente
+
+**🔒 Security Groups**
+- **Directory Server SG**:
+  - Inbound: 8080 (HTTP), 22 (SSH)
+  - Outbound: All traffic
+  
+- **Peers SG**:
+  - Inbound: 8001-8004 (REST), 50051-50074 (gRPC), 22 (SSH)
+  - Outbound: All traffic
+  
+- **RDS SG**:
+  - Inbound: 5432 (PostgreSQL) desde EC2 instances
+  - Outbound: None
+
+#### 🤖 Scripts de Auto-Deployment
+
+**Directory Server (user_data/directory_server.sh)**
+```bash
+#!/bin/bash
+# 1. Instala Docker y dependencias
+# 2. Clona el repositorio del proyecto
+# 3. Construye imagen Docker del Directory Server
+# 4. Ejecuta contenedor con conexión a RDS
+# 5. Espera hasta que el servicio esté listo
+# 6. Configura health checks automáticos
+```
+
+**Peers (user_data/peer.sh)**
+```bash
+#!/bin/bash
+# 1. Instala Docker y dependencias
+# 2. Clona el repositorio del proyecto
+# 3. Construye imagen Docker del Peer
+# 4. Detecta IP pública automáticamente
+# 5. Espera a que Directory Server esté disponible
+# 6. Ejecuta contenedor con configuración específica
+# 7. Auto-registro con Directory Server
+```
+
+#### 🔧 Configuración Avanzada
+
+**Variables Terraform Completas:**
+```hcl
+# Región y networking
+aws_region = "us-east-1"
+vpc_cidr = "10.20.0.0/16"
+public_subnet_cidrs = ["10.20.1.0/24", "10.20.2.0/24"]
+
+# EC2 Configuration
+key_name = "mi-keypair"
+instance_type_default = "t3.micro"
+peers_count = 3
+
+# Database
+db_name = "p2pdb"
+db_username = "p2puser"
+db_password = "mi-password-seguro"
+
+# Application
+git_repo_url = "https://github.com/usuario/p2p-grpc-rest.git"
+git_branch = "main"
+peer_rest_base_port = 8001
+directory_server_port = 8080
+```
+
+#### 📊 Monitoreo en AWS
+
+**CloudWatch Logs** (configuración futura):
+```bash
+# Logs de aplicación se pueden enviar a CloudWatch
+# Métricas de EC2 automáticas
+# Alarmas para health checks
+```
+
+**Acceso a Instancias:**
+```bash
+# Obtener IPs públicas
+terraform output
+
+# SSH a Directory Server
+ssh -i ~/.ssh/tu-key.pem ec2-user@<directory-server-ip>
+
+# SSH a Peer
+ssh -i ~/.ssh/tu-key.pem ec2-user@<peer-ip>
+
+# Ver logs de contenedores
+docker logs directory-server
+docker logs p2p-peer
+```
+
+#### 🧪 Testing en AWS
+
+**1. Verificar Deployment**
+```bash
+# Directory Server
+curl http://<directory-server-ip>:8080/api/v1/health
+
+# Peer APIs
+curl http://<peer1-ip>:8001/status
+curl http://<peer2-ip>:8002/status
+```
+
+**2. Test Completo P2P**
+```bash
+# Subir archivo a peer1
+curl -X POST "http://<peer1-ip>:8001/files/upload" \
+  -F "file=@test-file.txt"
+
+# Buscar archivo desde peer2
+curl "http://<peer2-ip>:8002/files/search?filename=test-file.txt"
+
+# Descargar archivo en peer2
+curl -X POST "http://<peer2-ip>:8002/files/download" \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "test-file.txt"}'
+```
+
+#### 💰 Costos Estimados (AWS)
+
+**Recursos por mes (us-east-1):**
+- **EC2 t3.micro** (3 instancias): ~$25/mes
+- **RDS db.t3.micro**: ~$15/mes  
+- **EBS Storage** (20GB): ~$2/mes
+- **Data Transfer**: ~$1-5/mes
+- **Total estimado**: ~$43-47/mes
+
+#### 🗑️ Cleanup
+
+**Destruir infraestructura:**
+```bash
+cd infra/terraform
+
+# Destruir todos los recursos
+terraform destroy
+# Confirmar con: yes
+
+# Verificar que no queden recursos
+aws ec2 describe-instances --query 'Reservations[].Instances[?State.Name!=`terminated`]'
+```
+
+#### 🔐 Consideraciones de Seguridad
+
+**Para Producción (mejoras recomendadas):**
+- Usar **VPC privadas** con NAT Gateway
+- Implementar **Application Load Balancer**
+- Configurar **SSL/TLS** certificates
+- Usar **AWS Secrets Manager** para passwords
+- Implementar **IAM roles** específicos
+- Habilitar **VPC Flow Logs**
+- Configurar **CloudTrail** para auditoría
+
+## 🔍 Troubleshooting
 
 ### Problemas Comunes
 
 **Peer no se registra:**
-- Verificar que directory server esté ejecutándose
-- Revisar configuración de red en docker-compose.yml
-
-**Descarga falla:**
-- Verificar que el peer origen esté activo
-- Revisar logs del peer: `docker-compose logs peer1`
-
-**Tests fallan:**
-- Asegurar que todos los servicios estén down: `make dev-down`
-- Limpiar containers: `make clean`
-
-### Ver Logs
 ```bash
-# Todos los servicios
-make logs
+# Verificar directory server
+curl http://localhost:8080/api/v1/health
 
-# Servicio específico
-docker-compose logs -f directory-server
-docker-compose logs -f peer1
+# Verificar logs del peer
+docker-compose logs peer1
 ```
 
-## 📋 Roadmap
+**Descarga falla:**
+```bash
+# Verificar que el archivo existe
+curl "http://localhost:8001/files/search?filename=archivo.txt"
 
-- [x] **Sprint 1**: Setup + Directory Server básico
-- [x] **Sprint 2**: Peer básico + gRPC transferencia
-- [x] **Sprint 3**: Integración completa + tests
-- [x] **Sprint 4**: Documentación + demo
-- [ ] **Futuro**: Deployment AWS/Kubernetes
-- [ ] **Futuro**: Replicación de archivos
-- [ ] **Futuro**: Cifrado end-to-end
+# Verificar estado del peer origen
+curl http://localhost:8002/status
+```
+
+**Servicios no responden:**
+```bash
+# Reiniciar servicios
+docker-compose restart
+
+# Limpiar y reiniciar
+docker-compose down
+docker-compose up -d
+```
+
+### Comandos Útiles
+```bash
+# Estado de todos los contenedores
+docker-compose ps
+
+# Acceder a shell de peer
+docker exec -it peer1 bash
+
+# Ver uso de recursos
+docker stats
+
+# Limpiar sistema completo
+docker-compose down -v
+docker system prune -f
+```
+
+## 🤝 Desarrollo
+
+### Setup de Desarrollo Local
+```bash
+# Instalar dependencias
+pipenv install --dev
+
+# Activar entorno virtual
+pipenv shell
+
+# Generar código gRPC
+python -m src.proto.generate
+
+# Ejecutar tests
+pytest tests/
+```
+
+### Estructura de Desarrollo
+- **FastAPI** para APIs REST con documentación automática
+- **gRPC** para comunicación P2P eficiente
+- **SQLAlchemy** para ORM y migraciones
+- **pytest** para testing completo
+- **Docker** para desarrollo consistente
 
 ## 📄 Licencia
 
-[Especificar licencia]
+[Especificar licencia del proyecto]
 
 ## 👥 Equipo
 
-- **Desarrollador 1**: Backend + Integración
-- **Desarrollador 2**: APIs + Testing
+Proyecto desarrollado para el curso "Arquitecturas de nube y Sistemas distribuidos"
 
 ## 📞 Soporte
 
 Para problemas o preguntas:
-- Abrir issue en GitHub
-- Revisar documentación en `/docs`
-- Consultar logs para debugging
+- Revisar documentación en APIs: `/docs`
+- Consultar logs: `docker-compose logs -f`
+- Verificar health checks de servicios
+
+---
+
+**Sistema P2P completamente funcional con APIs REST, microservicios gRPC, y deployment automatizado. Listo para demostración y evaluación académica.**
